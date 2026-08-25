@@ -11,22 +11,86 @@
 
 <body>
 
-    <header>
-        <h1>MIR4 GOLD</h1>
-        <p>Place Your Order</p>
-    </header>
+<header>
+    <h1>MIR4 GOLD</h1>
+    <p>Place Your Order</p>
+</header>
 
-    <main>
-        <section class="card">
+<main>
+    <section class="card">
 
-            <h2>Customer Order</h2>
+        <h2>Customer Order</h2>
 
-            <p>
-                Order form will be added here.
-            </p>
+        <form id="orderForm">
 
-        </section>
-    </main>
+            <label for="discordName">Discord Name</label>
+            <input
+                type="text"
+                id="discordName"
+                placeholder="Enter your Discord name"
+                required
+            >
+
+            <label for="characterName">Character Name</label>
+            <input
+                type="text"
+                id="characterName"
+                placeholder="Enter your character name"
+                required
+            >
+
+            <label for="server">MIR4 Server</label>
+            <input
+                type="text"
+                id="server"
+                placeholder="Example: ASIA 123"
+                required
+            >
+
+            <label for="gold">Gold Quantity</label>
+            <input
+                type="number"
+                id="gold"
+                placeholder="Enter gold quantity"
+                min="1"
+                required
+            >
+
+            <label for="notes">Notes</label>
+            <textarea
+                id="notes"
+                placeholder="Additional information (optional)"
+                rows="4"
+            ></textarea>
+
+            <button type="submit">
+                SUBMIT ORDER
+            </button>
+
+        </form>
+
+        <div id="message"></div>
+
+    </section>
+</main>
+
+<script>
+
+document.getElementById("orderForm").addEventListener("submit", function(event) {
+
+    event.preventDefault();
+
+    const message = document.getElementById("message");
+
+    message.innerHTML = `
+        <p style="margin-top:20px;">
+            Order form is ready.
+        </p>
+    `;
+
+});
+
+</script>
 
 </body>
 </html>
