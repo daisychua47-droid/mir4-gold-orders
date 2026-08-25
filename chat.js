@@ -1,5 +1,7 @@
 const SUPABASE_URL = "https://osiixogirgixgqxfvsgw.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_gYNQ38R5yTs6gmX_o2H_iA_bf6nR1GW";
+
+const SUPABASE_PUBLISHABLE_KEY =
+    "sb_publishable_gYNQ38R5yTs6gmX_o2H_iA_bf6nR1GW";
 
 const supabaseClient = window.supabase.createClient(
     SUPABASE_URL,
@@ -21,25 +23,74 @@ const accessToken = params.get("token");
 // ELEMENTS
 // ===============================
 
-const loading = document.getElementById("loading");
-const errorBox = document.getElementById("error");
-const orderContent = document.getElementById("orderContent");
+const loading =
+    document.getElementById("loading");
 
-const orderNumber = document.getElementById("orderNumber");
-const server = document.getElementById("server");
-const gold = document.getElementById("gold");
-const status = document.getElementById("status");
+const errorBox =
+    document.getElementById("error");
 
-const messagesBox = document.getElementById("messages");
+const orderContent =
+    document.getElementById("orderContent");
 
-const composer = document.getElementById("composer");
-const messageInput = document.getElementById("messageInput");
-const sendButton = document.getElementById("sendButton");
+const orderNumber =
+    document.getElementById("orderNumber");
 
-const closedMessage = document.getElementById("closedMessage");
+const server =
+    document.getElementById("server");
+
+const gold =
+    document.getElementById("gold");
+
+const status =
+    document.getElementById("status");
+
+const messagesBox =
+    document.getElementById("messages");
+
+const composer =
+    document.getElementById("composer");
+
+const messageInput =
+    document.getElementById("messageInput");
+
+const sendButton =
+    document.getElementById("sendButton");
+
+const closedMessage =
+    document.getElementById("closedMessage");
+
+
+// IMAGE ELEMENTS
+
+const imageButton =
+    document.getElementById("imageButton");
+
+const imageInput =
+    document.getElementById("imageInput");
+
+const imagePreview =
+    document.getElementById("imagePreview");
+
+const previewImage =
+    document.getElementById("previewImage");
+
+const previewName =
+    document.getElementById("previewName");
+
+const previewSize =
+    document.getElementById("previewSize");
+
+const removeImage =
+    document.getElementById("removeImage");
+
+const uploadStatus =
+    document.getElementById("uploadStatus");
+
 
 let currentOrder = null;
-let adminPresenceChannel = null;
+let selectedImage = null;
+let realtimeChannel = null;
+
 
 // ===============================
 // SHOW ERROR
@@ -48,13 +99,14 @@ let adminPresenceChannel = null;
 function showError(message) {
 
     loading.style.display = "none";
+
     orderContent.style.display = "none";
 
     errorBox.style.display = "block";
 
     errorBox.innerHTML = `
         <div class="error">
-            ${message}
+            ${escapeHtml(message)}
         </div>
     `;
 }
@@ -76,13 +128,14 @@ async function loadOrder() {
     }
 
 
-    const { data, error } = await supabaseClient.rpc(
-        "get_customer_order",
-        {
-            p_order_id: Number(orderId),
-            p_access_token: accessToken
-        }
-    );
+    const { data, error } =
+        await supabaseClient.rpc(
+            "get_customer_order",
+            {
+                p_order_id: Number(orderId),
+                p_access_token: accessToken
+            }
+        );
 
 
     if (error) {
@@ -99,6 +152,7 @@ async function loadOrder() {
 
     currentOrder = data.order;
 
+
     // ===============================
     // ORDER INFORMATION
     // ===============================
@@ -110,7 +164,9 @@ async function loadOrder() {
         currentOrder.server;
 
     gold.textContent =
-        Number(currentOrder.requested_gold).toLocaleString() + " G";
+        Number(
+            currentOrder.requested_gold
+        ).toLocaleString() + " G";
 
     status.textContent =
         currentOrder.status;
@@ -120,13 +176,18 @@ async function loadOrder() {
     // MESSAGES
     // ===============================
 
-    renderMessages(data.messages);
+    renderMessages(
+        data.messages || []
+    );
+
 
     // ===============================
     // CLOSED ORDER
     // ===============================
 
-    if (currentOrder.status === "CLOSED") {
+    if (
+        currentOrder.status === "CLOSED"
+    ) {
 
         composer.style.display = "none";
 
@@ -134,15 +195,24 @@ async function loadOrder() {
 
     } else {
 
-        composer.style.display = "flex";
+        composer.style.display = "block";
 
         closedMessage.style.display = "none";
     }
 
 
     loading.style.display = "none";
+
     errorBox.style.display = "none";
+
     orderContent.style.display = "block";
+
+
+    // ===============================
+    // START REALTIME
+    // ===============================
+
+    subscribeToRealtime();
 }
 
 
@@ -155,7 +225,10 @@ function renderMessages(messages) {
     messagesBox.innerHTML = "";
 
 
-    if (!messages || messages.length === 0) {
+    if (
+        !messages ||
+        messages.length === 0
+    ) {
 
         messagesBox.innerHTML = `
             <div class="empty">
@@ -169,50 +242,353 @@ function renderMessages(messages) {
 
     messages.forEach(message => {
 
-        const messageDiv =
-            document.createElement("div");
+        addMessageToChat(message);
 
-        messageDiv.className =
-            `message ${message.sender_type}`;
-        
-        messageDiv.dataset.messageId =
-            message.id;
-
-
-        const sender =
-            message.sender_type === "admin"
-                ? "ADMIN"
-                : "YOU";
-
-
-        const date =
-            new Date(message.created_at);
-
-
-        const time =
-            date.toLocaleString();
-
-
-        messageDiv.innerHTML = `
-            <div class="sender">
-                ${sender}
-            </div>
-
-            <div class="bubble">
-                ${escapeHtml(message.message)}
-            </div>
-
-            <div class="time">
-                ${time}
-            </div>
-        `;
-
-
-        messagesBox.appendChild(messageDiv);
     });
 
 
-    // Scroll to latest message
+    scrollToBottom();
+}
+
+
+// ===============================
+// ADD MESSAGE
+// ===============================
+
+function addMessageToChat(message) {
+
+    const messageDiv =
+        document.createElement("div");
+
+
+    messageDiv.className =
+        `message ${message.sender_type}`;
+
+
+    const sender =
+        message.sender_type === "admin"
+            ? "ADMIN"
+            : "YOU";
+
+
+    const date =
+        new Date(message.created_at);
+
+
+    const time =
+        date.toLocaleString();
+
+
+    messageDiv.innerHTML = `
+
+        <div class="sender">
+            ${sender}
+        </div>
+
+        <div class="bubble">
+            ${escapeHtml(message.message)}
+        </div>
+
+        <div class="time">
+            ${time}
+        </div>
+
+    `;
+
+
+    messagesBox.appendChild(
+        messageDiv
+    );
+}
+
+
+// ===============================
+// ADD IMAGE TO CHAT
+// ===============================
+
+function addImageToChat(image) {
+
+    const messageDiv =
+        document.createElement("div");
+
+
+    const sender =
+        image.sender_type === "admin"
+            ? "admin"
+            : "customer";
+
+
+    const senderText =
+        image.sender_type === "admin"
+            ? "ADMIN"
+            : "YOU";
+
+
+    const date =
+        new Date(image.created_at);
+
+
+    const time =
+        date.toLocaleString();
+
+
+    const imageUrl =
+        supabaseClient.storage
+            .from("order-screenshots")
+            .getPublicUrl(image.file_path)
+            .data.publicUrl;
+
+
+    messageDiv.className =
+        `message ${sender}`;
+
+
+    messageDiv.innerHTML = `
+
+        <div class="sender">
+            ${senderText}
+        </div>
+
+        <div class="bubble">
+
+            <img
+                src="${escapeHtml(imageUrl)}"
+                class="chat-image"
+                alt="${escapeHtml(
+                    image.original_name || "Image"
+                )}"
+                loading="lazy"
+                onclick="window.open(this.src, '_blank')"
+            >
+
+        </div>
+
+        <div class="time">
+            ${time}
+        </div>
+
+    `;
+
+
+    messagesBox.appendChild(
+        messageDiv
+    );
+}
+
+
+// ===============================
+// LOAD EXISTING IMAGES
+// ===============================
+
+async function loadImages() {
+
+    if (!currentOrder) {
+        return;
+    }
+
+
+    const { data, error } =
+        await supabaseClient
+            .from("order_screenshots")
+            .select(
+                "id, order_id, file_path, original_name, created_at"
+            )
+            .eq(
+                "order_id",
+                Number(orderId)
+            )
+            .order(
+                "created_at",
+                {
+                    ascending: true
+                }
+            );
+
+
+    if (error) {
+
+        console.error(
+            "Unable to load images:",
+            error
+        );
+
+        return;
+    }
+
+
+    if (!data) {
+        return;
+    }
+
+
+    data.forEach(image => {
+
+        // Don't add duplicates
+        if (
+            document.querySelector(
+                `[data-image-id="${image.id}"]`
+            )
+        ) {
+            return;
+        }
+
+
+        addImageToChat(image);
+
+
+        const last =
+            messagesBox.lastElementChild;
+
+        if (last) {
+
+            last.dataset.imageId =
+                image.id;
+
+        }
+
+    });
+
+
+    scrollToBottom();
+}
+
+
+// ===============================
+// REALTIME
+// ===============================
+
+function subscribeToRealtime() {
+
+    if (!orderId) {
+        return;
+    }
+
+
+    if (realtimeChannel) {
+
+        supabaseClient.removeChannel(
+            realtimeChannel
+        );
+
+        realtimeChannel = null;
+    }
+
+
+    realtimeChannel =
+        supabaseClient
+            .channel(
+                `customer-order-${orderId}`
+            )
+
+            // =========================
+            // NEW TEXT MESSAGE
+            // =========================
+
+            .on(
+                "postgres_changes",
+                {
+                    event: "INSERT",
+                    schema: "public",
+                    table: "order_messages",
+                    filter:
+                        `order_id=eq.${Number(orderId)}`
+                },
+                payload => {
+
+                    console.log(
+                        "New message:",
+                        payload.new
+                    );
+
+
+                    // Remove "No messages yet"
+                    const empty =
+                        messagesBox.querySelector(
+                            ".empty"
+                        );
+
+                    if (empty) {
+                        empty.remove();
+                    }
+
+
+                    addMessageToChat(
+                        payload.new
+                    );
+
+
+                    scrollToBottom();
+                }
+            )
+
+            // =========================
+            // NEW IMAGE
+            // =========================
+
+            .on(
+                "postgres_changes",
+                {
+                    event: "INSERT",
+                    schema: "public",
+                    table: "order_screenshots",
+                    filter:
+                        `order_id=eq.${Number(orderId)}`
+                },
+                payload => {
+
+                    console.log(
+                        "New image:",
+                        payload.new
+                    );
+
+
+                    const empty =
+                        messagesBox.querySelector(
+                            ".empty"
+                        );
+
+                    if (empty) {
+                        empty.remove();
+                    }
+
+
+                    addImageToChat(
+                        payload.new
+                    );
+
+
+                    const last =
+                        messagesBox.lastElementChild;
+
+                    if (last) {
+
+                        last.dataset.imageId =
+                            payload.new.id;
+
+                    }
+
+
+                    scrollToBottom();
+                }
+            )
+
+            .subscribe(status => {
+
+                console.log(
+                    "Realtime status:",
+                    status
+                );
+
+            });
+}
+
+
+// ===============================
+// SCROLL
+// ===============================
+
+function scrollToBottom() {
+
     messagesBox.scrollTop =
         messagesBox.scrollHeight;
 }
@@ -228,9 +604,365 @@ function escapeHtml(text) {
         document.createElement("div");
 
     div.textContent =
-        text;
+        text ?? "";
 
     return div.innerHTML;
+}
+
+
+// ===============================
+// FORMAT FILE SIZE
+// ===============================
+
+function formatFileSize(bytes) {
+
+    if (bytes < 1024) {
+
+        return bytes + " B";
+
+    }
+
+    if (bytes < 1024 * 1024) {
+
+        return (
+            (bytes / 1024).toFixed(1) +
+            " KB"
+        );
+
+    }
+
+    return (
+        (bytes / (1024 * 1024)).toFixed(1) +
+        " MB"
+    );
+}
+
+
+// ===============================
+// SELECT IMAGE
+// ===============================
+
+imageButton.addEventListener(
+    "click",
+    function() {
+
+        imageInput.click();
+
+    }
+);
+
+
+// ===============================
+// IMAGE SELECTED
+// ===============================
+
+imageInput.addEventListener(
+    "change",
+    function() {
+
+        const file =
+            imageInput.files[0];
+
+
+        if (!file) {
+            return;
+        }
+
+
+        // Only images
+        if (
+            !file.type.startsWith(
+                "image/"
+            )
+        ) {
+
+            alert(
+                "Please select an image."
+            );
+
+            imageInput.value = "";
+
+            return;
+        }
+
+
+        // 10 MB maximum
+        if (
+            file.size >
+            10 * 1024 * 1024
+        ) {
+
+            alert(
+                "Image must be 10 MB or smaller."
+            );
+
+            imageInput.value = "";
+
+            return;
+        }
+
+
+        selectedImage = file;
+
+
+        // Preview
+        const reader =
+            new FileReader();
+
+
+        reader.onload = function(event) {
+
+            previewImage.src =
+                event.target.result;
+
+        };
+
+
+        reader.readAsDataURL(file);
+
+
+        previewName.textContent =
+            file.name;
+
+        previewSize.textContent =
+            formatFileSize(
+                file.size
+            );
+
+
+        imagePreview.style.display =
+            "block";
+    }
+);
+
+
+// ===============================
+// REMOVE SELECTED IMAGE
+// ===============================
+
+removeImage.addEventListener(
+    "click",
+    function() {
+
+        selectedImage = null;
+
+        imageInput.value = "";
+
+        previewImage.src = "";
+
+        previewName.textContent = "";
+
+        previewSize.textContent = "";
+
+        imagePreview.style.display =
+            "none";
+    }
+);
+
+
+// ===============================
+// UPLOAD IMAGE
+// ===============================
+
+async function uploadImage() {
+
+    if (!selectedImage) {
+        return false;
+    }
+
+
+    if (!currentOrder) {
+        return false;
+    }
+
+
+    const file =
+        selectedImage;
+
+
+    uploadStatus.style.display =
+        "block";
+
+    uploadStatus.textContent =
+        "Uploading image...";
+
+
+    imageButton.disabled = true;
+
+    sendButton.disabled = true;
+
+
+    try {
+
+        // =========================
+        // CREATE UNIQUE FILE PATH
+        // =========================
+
+        const extension =
+            file.name
+                .split(".")
+                .pop()
+                .toLowerCase();
+
+
+        const safeExtension =
+            extension
+                .replace(
+                    /[^a-z0-9]/gi,
+                    ""
+                );
+
+
+        const filePath =
+            `chat/${Number(orderId)}/${Date.now()}-${crypto.randomUUID()}.${safeExtension}`;
+
+
+        // =========================
+        // UPLOAD TO STORAGE
+        // =========================
+
+        const { error: uploadError } =
+            await supabaseClient.storage
+                .from(
+                    "order-screenshots"
+                )
+                .upload(
+                    filePath,
+                    file,
+                    {
+                        cacheControl:
+                            "3600",
+
+                        contentType:
+                            file.type,
+
+                        upsert: false
+                    }
+                );
+
+
+        if (uploadError) {
+
+            console.error(
+                uploadError
+            );
+
+            throw uploadError;
+        }
+
+
+        uploadStatus.textContent =
+            "Saving image...";
+
+
+        // =========================
+        // SAVE DATABASE RECORD
+        // =========================
+
+        const { data, error } =
+            await supabaseClient.rpc(
+                "add_customer_screenshot",
+                {
+                    p_order_id:
+                        Number(orderId),
+
+                    p_access_token:
+                        accessToken,
+
+                    p_file_path:
+                        filePath,
+
+                    p_original_name:
+                        file.name
+                }
+            );
+
+
+        if (error) {
+
+            console.error(error);
+
+            // Remove orphaned Storage file
+            await supabaseClient.storage
+                .from(
+                    "order-screenshots"
+                )
+                .remove([
+                    filePath
+                ]);
+
+            throw error;
+        }
+
+
+        console.log(
+            "Image uploaded:",
+            data
+        );
+
+
+        // =========================
+        // RESET
+        // =========================
+
+        selectedImage = null;
+
+        imageInput.value = "";
+
+        previewImage.src = "";
+
+        previewName.textContent = "";
+
+        previewSize.textContent = "";
+
+        imagePreview.style.display =
+            "none";
+
+
+        uploadStatus.textContent =
+            "Image sent.";
+
+
+        setTimeout(
+            function() {
+
+                uploadStatus.style.display =
+                    "none";
+
+            },
+            1500
+        );
+
+
+        return true;
+
+    } catch (error) {
+
+        console.error(
+            "Image upload failed:",
+            error
+        );
+
+
+        alert(
+            "Unable to upload image. Please try again."
+        );
+
+
+        uploadStatus.style.display =
+            "none";
+
+
+        return false;
+
+    } finally {
+
+        imageButton.disabled =
+            false;
+
+        sendButton.disabled =
+            false;
+    }
 }
 
 
@@ -244,7 +976,30 @@ async function sendMessage() {
         messageInput.value.trim();
 
 
-    if (!message) {
+    // =========================
+    // IMAGE ONLY
+    // =========================
+
+    if (
+        !message &&
+        selectedImage
+    ) {
+
+        await uploadImage();
+
+        return;
+    }
+
+
+    // =========================
+    // NOTHING TO SEND
+    // =========================
+
+    if (
+        !message &&
+        !selectedImage
+    ) {
+
         return;
     }
 
@@ -255,149 +1010,85 @@ async function sendMessage() {
 
 
     sendButton.disabled = true;
-    sendButton.textContent = "SENDING...";
+
+    imageButton.disabled = true;
+
+    sendButton.textContent =
+        "SENDING...";
 
 
-    const { data, error } =
-        await supabaseClient.rpc(
-            "send_customer_message",
-            {
-                p_order_id: Number(orderId),
-                p_access_token: accessToken,
-                p_message: message
-            }
-        );
+    // =========================
+    // SEND TEXT
+    // =========================
 
+    if (message) {
 
-    if (error) {
+        const { data, error } =
+            await supabaseClient.rpc(
+                "send_customer_message",
+                {
+                    p_order_id:
+                        Number(orderId),
 
-        console.error(error);
+                    p_access_token:
+                        accessToken,
 
-        alert(
-            "Unable to send message. Please try again."
-        );
-
-        sendButton.disabled = false;
-        sendButton.textContent = "SEND";
-
-        return;
-    }
-
-
-    messageInput.value = "";
-
-
-    sendButton.disabled = false;
-    sendButton.textContent = "SEND";
-
-}
-
-
-function addRealtimeMessage(message) {
-
-    if (!message) return;
-
-    const existingMessage =
-        messagesBox.querySelector(
-            `[data-message-id="${message.id}"]`
-        );
-
-    if (existingMessage) {
-        return;
-    }
-
-    const empty =
-        messagesBox.querySelector(".empty");
-
-    if (empty) {
-        empty.remove();
-    }
-
-    const messageDiv =
-        document.createElement("div");
-
-    messageDiv.className =
-        `message ${message.sender_type}`;
-
-    messageDiv.dataset.messageId =
-        message.id;
-
-    const sender =
-        message.sender_type === "admin"
-            ? "ADMIN"
-            : "YOU";
-
-    const date =
-        new Date(message.created_at);
-
-    const time =
-        date.toLocaleString();
-
-    messageDiv.innerHTML = `
-        <div class="sender">
-            ${sender}
-        </div>
-
-        <div class="bubble">
-            ${escapeHtml(message.message)}
-        </div>
-
-        <div class="time">
-            ${time}
-        </div>
-    `;
-
-    messagesBox.appendChild(messageDiv);
-
-    messagesBox.scrollTop =
-        messagesBox.scrollHeight;
-}
-
-// ===============================
-// REALTIME CUSTOMER CHAT
-// ===============================
-
-function subscribeToMessages() {
-
-    if (!orderId) {
-        return;
-    }
-
-    console.log(
-        "Starting realtime for order:",
-        orderId
-    );
-
-    supabaseClient
-        .channel(`customer-order-${orderId}`)
-        .on(
-            "postgres_changes",
-            {
-                event: "INSERT",
-                schema: "public",
-                table: "order_messages",
-                filter: `order_id=eq.${orderId}`
-            },
-            payload => {
-
-                console.log(
-                    "REALTIME MESSAGE:",
-                    payload.new
-                );
-
-                addRealtimeMessage(
-                    payload.new
-                );
-            }
-        )
-        .subscribe(status => {
-
-            console.log(
-                "Realtime status:",
-                status
+                    p_message:
+                        message
+                }
             );
-        });
+
+
+        if (error) {
+
+            console.error(error);
+
+            alert(
+                "Unable to send message. Please try again."
+            );
+
+            sendButton.disabled =
+                false;
+
+            imageButton.disabled =
+                false;
+
+            sendButton.textContent =
+                "SEND";
+
+            return;
+        }
+
+
+        messageInput.value = "";
+
+        console.log(
+            "Message sent:",
+            data
+        );
+    }
+
+
+    // =========================
+    // SEND IMAGE TOO
+    // =========================
+
+    if (selectedImage) {
+
+        await uploadImage();
+    }
+
+
+    sendButton.disabled =
+        false;
+
+    imageButton.disabled =
+        false;
+
+    sendButton.textContent =
+        "SEND";
 }
+
 
 // ===============================
 // SEND BUTTON
@@ -432,144 +1123,15 @@ messageInput.addEventListener(
 
 
 // ===============================
-// ADMIN VIEWING INDICATOR
-// ===============================
-
-function subscribeToAdminPresence() {
-
-    if (!orderId) {
-        return;
-    }
-
-    adminPresenceChannel =
-        supabaseClient.channel(
-            `order-presence-${orderId}`,
-            {
-                config: {
-                    presence: {
-                        key: "customer"
-                    }
-                }
-            }
-        );
-
-    adminPresenceChannel
-        .on(
-            "presence",
-            {
-                event: "sync"
-            },
-            () => {
-
-                updateAdminViewing();
-            }
-        )
-        .on(
-            "presence",
-            {
-                event: "join"
-            },
-            () => {
-
-                updateAdminViewing();
-            }
-        )
-        .on(
-            "presence",
-            {
-                event: "leave"
-            },
-            () => {
-
-                updateAdminViewing();
-            }
-        )
-        .subscribe(status => {
-
-            if (status === "SUBSCRIBED") {
-
-                updateAdminViewing();
-            }
-        });
-}
-
-
-// ===============================
-// UPDATE INDICATOR
-// ===============================
-
-function updateAdminViewing() {
-
-    if (!adminPresenceChannel) {
-        return;
-    }
-
-    const state =
-        adminPresenceChannel.presenceState();
-
-    const adminIsViewing =
-        Object.keys(state).some(
-            key => key === "admin"
-        );
-
-
-    let indicator =
-        document.getElementById(
-            "adminViewing"
-        );
-
-
-    if (!indicator) {
-
-        indicator =
-            document.createElement(
-                "div"
-            );
-
-        indicator.id =
-            "adminViewing";
-
-        indicator.style.cssText = `
-            display: none;
-            padding: 8px 12px;
-            margin-bottom: 10px;
-            border-radius: 8px;
-            background: #173b2a;
-            color: #7ee2a8;
-            font-size: 13px;
-            text-align: center;
-        `;
-
-
-        messagesBox.parentNode.insertBefore(
-            indicator,
-            messagesBox
-        );
-    }
-
-
-    if (adminIsViewing) {
-
-        indicator.style.display =
-            "block";
-
-        indicator.textContent =
-            "🟢 Admin is viewing this chat";
-
-    } else {
-
-        indicator.style.display =
-            "none";
-    }
-}
-
-// ===============================
 // START
 // ===============================
 
-loadOrder().then(() => {
+async function start() {
 
-    subscribeToMessages();
+    await loadOrder();
 
-    subscribeToAdminPresence();
-});
+    await loadImages();
+}
+
+
+start();
