@@ -1,412 +1,581 @@
-<!DOCTYPE html>
-<html lang="en">
+const SUPABASE_URL =
+    "https://osiixogirgixgqxfvsgw.supabase.co";
 
-<head>
-    <meta charset="UTF-8">
+const SUPABASE_PUBLISHABLE_KEY =
+    "sb_publishable_gYNQ38R5yTs6gmX_o2H_iA_bf6nR1GW";
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+const supabaseClient =
+    window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_PUBLISHABLE_KEY
+    );
 
-    <title>MIR4 GOLD - Admin Chat</title>
+const params =
+    new URLSearchParams(window.location.search);
 
-    <style>
+const orderId =
+    Number(params.get("order"));
 
-        * {
-            box-sizing: border-box;
+const loading =
+    document.getElementById("loading");
+
+const errorBox =
+    document.getElementById("error");
+
+const content =
+    document.getElementById("content");
+
+const orderNumber =
+    document.getElementById("orderNumber");
+
+const customer =
+    document.getElementById("customer");
+
+const server =
+    document.getElementById("server");
+
+const gold =
+    document.getElementById("gold");
+
+const status =
+    document.getElementById("status");
+
+const messagesBox =
+    document.getElementById("messages");
+
+const composer =
+    document.getElementById("composer");
+
+const messageInput =
+    document.getElementById("messageInput");
+
+const sendButton =
+    document.getElementById("sendButton");
+
+const closedMessage =
+    document.getElementById("closedMessage");
+
+
+// ==============================
+// CHECK ADMIN
+// ==============================
+
+async function checkAdmin() {
+
+    try {
+
+        const {
+            data: {
+                user
+            },
+            error
+        } =
+            await supabaseClient.auth.getUser();
+
+        if (error) {
+            throw error;
         }
 
-        body {
-            margin: 0;
-            min-height: 100vh;
-            font-family: Arial, sans-serif;
-            background: #101827;
-            color: white;
+        if (!user) {
+
+            window.location.href =
+                "admin.html";
+
+            return false;
         }
 
-        header {
-            height: 70px;
-            background: #1f2d42;
-            border-bottom: 1px solid #394961;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 25px;
+
+        const {
+            data,
+            error: adminError
+        } =
+            await supabaseClient
+                .from("admin_users")
+                .select("id")
+                .eq("id", user.id)
+                .maybeSingle();
+
+
+        if (adminError) {
+            throw adminError;
         }
 
-        header h2 {
-            margin: 0;
-            font-size: 20px;
+
+        if (!data) {
+
+            window.location.href =
+                "admin.html";
+
+            return false;
         }
 
-        .back {
-            background: #40516a;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            padding: 10px 18px;
-            cursor: pointer;
+
+        return true;
+
+    } catch (error) {
+
+        console.error(
+            "Admin check error:",
+            error
+        );
+
+        showError(
+            "Admin verification failed.<br><br>" +
+            escapeHtml(error.message)
+        );
+
+        return false;
+    }
+}
+
+
+// ==============================
+// LOAD ORDER
+// ==============================
+
+async function loadOrder() {
+
+    if (!orderId) {
+
+        showError(
+            "Invalid order ID."
+        );
+
+        return;
+    }
+
+
+    try {
+
+        const {
+            data,
+            error
+        } =
+            await supabaseClient
+                .from("orders")
+                .select("*")
+                .eq("id", orderId)
+                .maybeSingle();
+
+
+        if (error) {
+            throw error;
         }
 
-        .container {
-            max-width: 950px;
-            margin: 25px auto;
-            padding: 0 15px;
+
+        if (!data) {
+
+            showError(
+                "Order not found."
+            );
+
+            return;
         }
 
-        .order-card {
-            background: #202f43;
-            border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 20px;
+
+        console.log(
+            "ORDER:",
+            data
+        );
+
+
+        orderNumber.textContent =
+            data.order_number ||
+            data.id ||
+            "-";
+
+
+        customer.textContent =
+            data.customer_name ||
+            data.customer ||
+            data.name ||
+            "Customer";
+
+
+        server.textContent =
+            data.server ||
+            "-";
+
+
+        gold.textContent =
+            Number(
+                data.requested_gold ||
+                data.gold ||
+                0
+            ).toLocaleString() +
+            " G";
+
+
+        status.textContent =
+            data.status ||
+            "-";
+
+
+        await loadMessages();
+
+
+        if (
+            String(data.status)
+                .toUpperCase() ===
+            "CLOSED"
+        ) {
+
+            composer.style.display =
+                "none";
+
+            closedMessage.style.display =
+                "block";
+
+        } else {
+
+            composer.style.display =
+                "flex";
+
+            closedMessage.style.display =
+                "none";
         }
 
-        .order-number {
-            font-size: 20px;
-            font-weight: bold;
-            margin-bottom: 18px;
+
+        loading.style.display =
+            "none";
+
+        errorBox.style.display =
+            "none";
+
+        content.style.display =
+            "block";
+
+
+    } catch (error) {
+
+        console.error(
+            "Load order error:",
+            error
+        );
+
+        showError(
+            "Unable to load order.<br><br>" +
+            escapeHtml(error.message)
+        );
+    }
+}
+
+
+// ==============================
+// LOAD MESSAGES
+// ==============================
+
+async function loadMessages() {
+
+    try {
+
+        const {
+            data,
+            error
+        } =
+            await supabaseClient
+                .from("order_messages")
+                .select(
+                    "id, order_id, sender_type, message, attachment_path, created_at"
+                )
+                .eq(
+                    "order_id",
+                    orderId
+                )
+                .order(
+                    "created_at",
+                    {
+                        ascending: true
+                    }
+                );
+
+
+        if (error) {
+            throw error;
         }
 
-        .info {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 15px;
-        }
 
-        .label {
-            color: #9fb0c7;
-            font-size: 12px;
-            margin-bottom: 5px;
-        }
-
-        .value {
-            font-size: 15px;
-            font-weight: bold;
-        }
-
-        .chat-card {
-            background: #182437;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-
-        .chat-title {
-            background: #202f43;
-            padding: 15px 20px;
-            font-weight: bold;
-            border-bottom: 1px solid #34445a;
-        }
-
-        #messages {
-            height: 500px;
-            overflow-y: auto;
-            padding: 20px;
-        }
-
-        .message {
-            margin-bottom: 18px;
-            max-width: 75%;
-        }
-
-        .message.customer {
-            margin-right: auto;
-        }
-
-        .message.admin {
-            margin-left: auto;
-            text-align: right;
-        }
-
-        .sender {
-            font-size: 11px;
-            color: #9fb0c7;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-
-        .bubble {
-            display: inline-block;
-            padding: 11px 14px;
-            border-radius: 10px;
-            text-align: left;
-            word-break: break-word;
-            white-space: pre-wrap;
-        }
-
-        .customer .bubble {
-            background: #2d3d53;
-        }
-
-        .admin .bubble {
-            background: #3567a5;
-        }
-
-        .time {
-            font-size: 10px;
-            color: #718199;
-            margin-top: 4px;
-        }
-
-        .empty {
-            text-align: center;
-            color: #718199;
-            padding: 80px 20px;
-        }
-
-        .composer {
-            display: flex;
-            gap: 10px;
-            padding: 15px;
-            background: #202f43;
-            border-top: 1px solid #34445a;
-        }
-
-        #messageInput {
-            flex: 1;
-            min-height: 45px;
-            max-height: 120px;
-            resize: vertical;
-            border: 1px solid #506078;
-            border-radius: 7px;
-            background: #101827;
-            color: white;
-            padding: 12px;
-            font-family: Arial, sans-serif;
-            outline: none;
-        }
-
-        #messageInput:focus {
-            border-color: #6e91bd;
-        }
-
-        #sendButton {
-            width: 90px;
-            border: none;
-            border-radius: 7px;
-            background: white;
-            color: #101827;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        #sendButton:disabled {
-            opacity: 0.5;
-            cursor: default;
-        }
-
-        #closedMessage {
-            display: none;
-            padding: 15px;
-            text-align: center;
-            color: #f0b5b5;
-            background: #3a2025;
-        }
-
-        #loading {
-            text-align: center;
-            padding: 100px 20px;
-            color: #9fb0c7;
-        }
-
-        #error {
-            display: none;
-            text-align: center;
-            padding: 60px 20px;
-            color: #ff9b9b;
-        }
-
-        #content {
-            display: none;
-        }
-
-        @media (max-width: 700px) {
-
-            header {
-                padding: 0 15px;
-            }
-
-            header h2 {
-                font-size: 16px;
-            }
-
-            .container {
-                margin: 15px auto;
-                padding: 0 10px;
-            }
-
-            .info {
-                grid-template-columns: repeat(2, 1fr);
-            }
-
-            #messages {
-                height: calc(100vh - 360px);
-                min-height: 350px;
-            }
-
-            .message {
-                max-width: 88%;
-            }
-
-            .composer {
-                padding: 10px;
-            }
-
-            #sendButton {
-                width: 70px;
-            }
-        }
-
-    </style>
-
-</head>
-
-<body>
-
-<header>
-
-    <h2>MIR4 GOLD — ADMIN CHAT</h2>
-
-    <button
-        class="back"
-        onclick="goBack()"
-    >
-        BACK
-    </button>
-
-</header>
+        renderMessages(
+            data || []
+        );
 
 
-<div class="container">
+    } catch (error) {
 
-    <div id="loading">
-        Loading order...
-    </div>
+        console.error(
+            "Load messages error:",
+            error
+        );
+
+        showError(
+            "Unable to load messages.<br><br>" +
+            escapeHtml(error.message)
+        );
+    }
+}
 
 
-    <div id="error"></div>
+// ==============================
+// RENDER MESSAGES
+// ==============================
+
+function renderMessages(messages) {
+
+    messagesBox.innerHTML = "";
 
 
-    <div id="content">
+    if (!messages.length) {
 
-        <div class="order-card">
-
-            <div
-                id="orderNumber"
-                class="order-number"
-            >
-                -
+        messagesBox.innerHTML =
+            `
+            <div class="empty">
+                No messages yet.
             </div>
+            `;
 
-            <div class="info">
+        return;
+    }
 
-                <div>
-                    <div class="label">
-                        CUSTOMER
-                    </div>
 
-                    <div
-                        id="customer"
-                        class="value"
-                    >
-                        -
-                    </div>
+    messages.forEach(
+        item => {
+
+            const div =
+                document.createElement(
+                    "div"
+                );
+
+
+            const isAdmin =
+                String(
+                    item.sender_type
+                ).toLowerCase() ===
+                "admin";
+
+
+            div.className =
+                isAdmin
+                    ? "message admin"
+                    : "message customer";
+
+
+            const sender =
+                isAdmin
+                    ? "ADMIN"
+                    : "CUSTOMER";
+
+
+            const time =
+                new Date(
+                    item.created_at
+                ).toLocaleString();
+
+
+            div.innerHTML =
+                `
+                <div class="sender">
+                    ${sender}
                 </div>
 
-
-                <div>
-                    <div class="label">
-                        SERVER
-                    </div>
-
-                    <div
-                        id="server"
-                        class="value"
-                    >
-                        -
-                    </div>
+                <div class="bubble">
+                    ${escapeHtml(
+                        item.message
+                    )}
                 </div>
 
-
-                <div>
-                    <div class="label">
-                        GOLD
-                    </div>
-
-                    <div
-                        id="gold"
-                        class="value"
-                    >
-                        -
-                    </div>
+                <div class="time">
+                    ${escapeHtml(time)}
                 </div>
+                `;
 
 
-                <div>
-                    <div class="label">
-                        STATUS
-                    </div>
-
-                    <div
-                        id="status"
-                        class="value"
-                    >
-                        -
-                    </div>
-                </div>
-
-            </div>
-
-        </div>
+            messagesBox.appendChild(
+                div
+            );
+        }
+    );
 
 
-        <div class="chat-card">
-
-            <div class="chat-title">
-                ORDER CHAT
-            </div>
+    messagesBox.scrollTop =
+        messagesBox.scrollHeight;
+}
 
 
-            <div id="messages"></div>
+// ==============================
+// SEND MESSAGE
+// ==============================
+
+async function sendMessage() {
+
+    const message =
+        messageInput.value.trim();
 
 
-            <div
-                id="closedMessage"
-            >
-                This order is closed.
-            </div>
+    if (!message) {
+        return;
+    }
 
 
-            <div
-                id="composer"
-                class="composer"
-            >
+    sendButton.disabled =
+        true;
 
-                <textarea
-                    id="messageInput"
-                    placeholder="Type your reply..."
-                ></textarea>
+    sendButton.textContent =
+        "SENDING...";
 
 
-                <button
-                    id="sendButton"
-                >
-                    SEND
-                </button>
+    try {
 
-            </div>
+        const {
+            error
+        } =
+            await supabaseClient
+                .from("order_messages")
+                .insert({
+                    order_id: orderId,
+                    sender_type: "admin",
+                    message: message,
+                    attachment_path: null
+                });
 
-        </div>
 
-    </div>
+        if (error) {
+            throw error;
+        }
 
-</div>
+
+        messageInput.value =
+            "";
 
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        await loadMessages();
 
-<script src="admin-chat.js"></script>
 
-</body>
+    } catch (error) {
 
-</html>
+        console.error(
+            "Send message error:",
+            error
+        );
+
+        alert(
+            "Unable to send message:\n\n" +
+            error.message
+        );
+
+    } finally {
+
+        sendButton.disabled =
+            false;
+
+        sendButton.textContent =
+            "SEND";
+    }
+}
+
+
+// ==============================
+// BACK
+// ==============================
+
+function goBack() {
+
+    window.location.href =
+        "dashboard.html";
+}
+
+
+// ==============================
+// ERROR
+// ==============================
+
+function showError(message) {
+
+    loading.style.display =
+        "none";
+
+    content.style.display =
+        "none";
+
+    errorBox.style.display =
+        "block";
+
+    errorBox.innerHTML =
+        message;
+}
+
+
+// ==============================
+// ESCAPE HTML
+// ==============================
+
+function escapeHtml(value) {
+
+    const div =
+        document.createElement(
+            "div"
+        );
+
+    div.textContent =
+        value == null
+            ? ""
+            : String(value);
+
+    return div.innerHTML;
+}
+
+
+// ==============================
+// EVENTS
+// ==============================
+
+sendButton.addEventListener(
+    "click",
+    sendMessage
+);
+
+
+messageInput.addEventListener(
+    "keydown",
+    event => {
+
+        if (
+            event.key === "Enter" &&
+            !event.shiftKey
+        ) {
+
+            event.preventDefault();
+
+            sendMessage();
+        }
+    }
+);
+
+
+// ==============================
+// START
+// ==============================
+
+async function start() {
+
+    console.log(
+        "Admin chat starting...",
+        {
+            orderId
+        }
+    );
+
+
+    const isAdmin =
+        await checkAdmin();
+
+
+    if (!isAdmin) {
+        return;
+    }
+
+
+    await loadOrder();
+}
+
+
+start();
