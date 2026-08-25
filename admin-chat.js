@@ -631,5 +631,77 @@ async function start() {
     subscribeToMessages();
 }
 
+// ==============================
+// ADMIN VIEWING PRESENCE
+// ==============================
 
-start();
+let adminPresenceChannel = null;
+
+function startAdminPresence() {
+
+    if (!orderId) {
+        return;
+    }
+
+    adminPresenceChannel =
+        supabaseClient.channel(
+            `order-presence-${orderId}`,
+            {
+                config: {
+                    presence: {
+                        key: "admin"
+                    }
+                }
+            }
+        );
+
+    adminPresenceChannel
+        .subscribe(async status => {
+
+            if (status === "SUBSCRIBED") {
+
+                await adminPresenceChannel.track({
+                    role: "admin",
+                    viewing: true,
+                    online_at:
+                        new Date().toISOString()
+                });
+
+                console.log(
+                    "Admin viewing order:",
+                    orderId
+                );
+            }
+        });
+}
+
+
+// ==============================
+// STOP ADMIN PRESENCE
+// ==============================
+
+function stopAdminPresence() {
+
+    if (!adminPresenceChannel) {
+        return;
+    }
+
+    adminPresenceChannel.untrack();
+
+    supabaseClient.removeChannel(
+        adminPresenceChannel
+    );
+
+    adminPresenceChannel = null;
+}
+
+
+window.addEventListener(
+    "beforeunload",
+    stopAdminPresence
+);
+
+
+start().then(() => {
+    startAdminPresence();
+});
