@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>MIR4 GOLD - Order Chat</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #101827;
+            color: #ffffff;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 25px 15px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+
+        .header p {
+            margin-top: 8px;
+            color: #9ca8ba;
+        }
+
+        .order-info {
+            background: #202c3d;
+            border-radius: 12px;
+            padding: 18px;
+            margin-bottom: 15px;
+        }
+
+        .order-info h2 {
+            margin: 0 0 12px;
+            font-size: 20px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 6px 0;
+            color: #cbd5e1;
+        }
+
+        .info-row strong {
+            color: #ffffff;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 20px;
+            background: #334155;
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        .chat-box {
+            background: #182233;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            padding: 15px 18px;
+            border-bottom: 1px solid #2d394b;
+            font-weight: bold;
+        }
+
+        .messages {
+            min-height: 350px;
+            max-height: 500px;
+            overflow-y: auto;
+            padding: 18px;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            max-width: 80%;
+        }
+
+        .message.customer {
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .message.admin {
+            margin-right: auto;
+        }
+
+        .sender {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-bottom: 5px;
+        }
+
+        .bubble {
+            display: inline-block;
+            padding: 11px 14px;
+            border-radius: 12px;
+            text-align: left;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .customer .bubble {
+            background: #2563eb;
+        }
+
+        .admin .bubble {
+            background: #334155;
+        }
+
+        .time {
+            margin-top: 4px;
+            font-size: 10px;
+            color: #718096;
+        }
+
+        .empty {
+            text-align: center;
+            color: #64748b;
+            padding: 80px 20px;
+        }
+
+        .composer {
+            border-top: 1px solid #2d394b;
+            padding: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .composer textarea {
+            flex: 1;
+            min-height: 48px;
+            max-height: 120px;
+            resize: vertical;
+            border: 1px solid #3b4759;
+            border-radius: 8px;
+            background: #101827;
+            color: #ffffff;
+            padding: 12px;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .composer textarea:focus {
+            border-color: #64748b;
+        }
+
+        .composer button {
+            border: none;
+            border-radius: 8px;
+            padding: 0 20px;
+            background: #ffffff;
+            color: #111827;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .composer button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .closed-message {
+            padding: 18px;
+            text-align: center;
+            color: #fca5a5;
+            border-top: 1px solid #2d394b;
+        }
+
+        .error {
+            background: #3f1d1d;
+            color: #fecaca;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .loading {
+            text-align: center;
+            color: #94a3b8;
+            padding: 80px 20px;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 18px 10px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .info-row {
+                font-size: 14px;
+            }
+
+            .message {
+                max-width: 90%;
+            }
+
+            .composer {
+                flex-direction: column;
+            }
+
+            .composer button {
+                height: 45px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="header">
+        <h1>MIR4 GOLD</h1>
+        <p>Order Chat</p>
+    </div>
+
+    <div id="loading" class="loading">
+        Loading your order...
+    </div>
+
+    <div id="error" style="display:none;"></div>
+
+    <div id="orderContent" style="display:none;">
+
+        <div class="order-info">
+
+            <h2 id="orderNumber">ORDER</h2>
+
+            <div class="info-row">
+                <span>Server</span>
+                <strong id="server"></strong>
+            </div>
+
+            <div class="info-row">
+                <span>Gold</span>
+                <strong id="gold"></strong>
+            </div>
+
+            <div class="info-row">
+                <span>Status</span>
+                <span id="status" class="status"></span>
+            </div>
+
+        </div>
+
+        <div class="chat-box">
+
+            <div class="chat-header">
+                Messages
+            </div>
+
+            <div id="messages" class="messages">
+            </div>
+
+            <div id="composer" class="composer">
+
+                <textarea
+                    id="messageInput"
+                    placeholder="Type your message..."
+                ></textarea>
+
+                <button id="sendButton">
+                    SEND
+                </button>
+
+            </div>
+
+            <div id="closedMessage"
+                 class="closed-message"
+                 style="display:none;">
+                This order is closed.
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="chat.js"></script>
+
+</body>
+</html>
