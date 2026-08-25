@@ -25,7 +25,8 @@ header p {
 }
 
 main {
-    max-width: 500px;
+    width: 100%;
+    max-width: 520px;
     margin: 30px auto;
     padding: 20px;
 }
@@ -39,10 +40,12 @@ main {
 .card h2 {
     text-align: center;
     margin-top: 0;
+    margin-bottom: 25px;
 }
 
 label {
     display: block;
+    width: 100%;
     margin-top: 18px;
     margin-bottom: 7px;
     font-weight: bold;
@@ -50,6 +53,7 @@ label {
 
 input,
 textarea {
+    display: block;
     width: 100%;
     padding: 13px;
     border: 1px solid #374151;
@@ -61,6 +65,7 @@ textarea {
 
 textarea {
     resize: vertical;
+    min-height: 100px;
 }
 
 input:focus,
@@ -70,6 +75,7 @@ textarea:focus {
 }
 
 button {
+    display: block;
     width: 100%;
     padding: 14px;
     margin-top: 25px;
@@ -86,4 +92,5 @@ button:hover {
 
 #message {
     text-align: center;
+    margin-top: 15px;
 }
