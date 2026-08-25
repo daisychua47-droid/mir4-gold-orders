@@ -597,7 +597,7 @@ function subscribeToMessages() {
                     status
                 );
             }
-        );
+        )
         .on(
                 "postgres_changes",
                 {
