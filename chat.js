@@ -99,53 +99,6 @@ async function loadOrder() {
 
     currentOrder = data.order;
 
-
-    // ===============================
-// REALTIME CUSTOMER CHAT
-// ===============================
-
-function subscribeToMessages() {
-
-    if (!orderId) {
-        return;
-    }
-
-    console.log(
-        "Starting realtime for order:",
-        orderId
-    );
-
-    supabaseClient
-        .channel(`customer-order-${orderId}`)
-        .on(
-            "postgres_changes",
-            {
-                event: "INSERT",
-                schema: "public",
-                table: "order_messages",
-                filter: `order_id=eq.${orderId}`
-            },
-            payload => {
-
-                console.log(
-                    "REALTIME MESSAGE:",
-                    payload.new
-                );
-
-                addRealtimeMessage(
-                    payload.new
-                );
-            }
-        )
-        .subscribe(status => {
-
-            console.log(
-                "Realtime status:",
-                status
-            );
-        });
-}
-
     // ===============================
     // ORDER INFORMATION
     // ===============================
@@ -168,76 +121,6 @@ function subscribeToMessages() {
     // ===============================
 
     renderMessages(data.messages);
-
-    // ===============================
-// ADD SINGLE REALTIME MESSAGE
-// ===============================
-
-function addRealtimeMessage(message) {
-
-    // Ignore invalid messages
-    if (!message) return;
-
-    // Prevent duplicate message
-    const existingMessage =
-        messagesBox.querySelector(
-            `[data-message-id="${message.id}"]`
-        );
-
-    if (existingMessage) {
-        return;
-    }
-
-    // Remove "No messages yet."
-    const empty =
-        messagesBox.querySelector(".empty");
-
-    if (empty) {
-        empty.remove();
-    }
-
-    const messageDiv =
-        document.createElement("div");
-
-    messageDiv.className =
-        `message ${message.sender_type}`;
-
-    messageDiv.dataset.messageId =
-        message.id;
-
-    const sender =
-        message.sender_type === "admin"
-            ? "ADMIN"
-            : "YOU";
-
-    const date =
-        new Date(message.created_at);
-
-    const time =
-        date.toLocaleString();
-
-    messageDiv.innerHTML = `
-        <div class="sender">
-            ${sender}
-        </div>
-
-        <div class="bubble">
-            ${escapeHtml(message.message)}
-        </div>
-        
-
-        <div class="time">
-            ${time}
-        </div>
-    `;
-
-    messagesBox.appendChild(messageDiv);
-
-    // Scroll to latest message
-    messagesBox.scrollTop =
-        messagesBox.scrollHeight;
-}
-
 
     // ===============================
     // CLOSED ORDER
@@ -409,6 +292,112 @@ async function sendMessage() {
 
 }
 
+
+function addRealtimeMessage(message) {
+
+    if (!message) return;
+
+    const existingMessage =
+        messagesBox.querySelector(
+            `[data-message-id="${message.id}"]`
+        );
+
+    if (existingMessage) {
+        return;
+    }
+
+    const empty =
+        messagesBox.querySelector(".empty");
+
+    if (empty) {
+        empty.remove();
+    }
+
+    const messageDiv =
+        document.createElement("div");
+
+    messageDiv.className =
+        `message ${message.sender_type}`;
+
+    messageDiv.dataset.messageId =
+        message.id;
+
+    const sender =
+        message.sender_type === "admin"
+            ? "ADMIN"
+            : "YOU";
+
+    const date =
+        new Date(message.created_at);
+
+    const time =
+        date.toLocaleString();
+
+    messageDiv.innerHTML = `
+        <div class="sender">
+            ${sender}
+        </div>
+
+        <div class="bubble">
+            ${escapeHtml(message.message)}
+        </div>
+
+        <div class="time">
+            ${time}
+        </div>
+    `;
+
+    messagesBox.appendChild(messageDiv);
+
+    messagesBox.scrollTop =
+        messagesBox.scrollHeight;
+}
+
+// ===============================
+// REALTIME CUSTOMER CHAT
+// ===============================
+
+function subscribeToMessages() {
+
+    if (!orderId) {
+        return;
+    }
+
+    console.log(
+        "Starting realtime for order:",
+        orderId
+    );
+
+    supabaseClient
+        .channel(`customer-order-${orderId}`)
+        .on(
+            "postgres_changes",
+            {
+                event: "INSERT",
+                schema: "public",
+                table: "order_messages",
+                filter: `order_id=eq.${orderId}`
+            },
+            payload => {
+
+                console.log(
+                    "REALTIME MESSAGE:",
+                    payload.new
+                );
+
+                addRealtimeMessage(
+                    payload.new
+                );
+            }
+        )
+        .subscribe(status => {
+
+            console.log(
+                "Realtime status:",
+                status
+            );
+        });
+}
 
 // ===============================
 // SEND BUTTON
