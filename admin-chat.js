@@ -619,7 +619,7 @@ function subscribeToMessages() {
                         true
                     );
                 }
-            )
+            );
 
     
 }
