@@ -563,11 +563,12 @@ function subscribeToMessages() {
         orderId
     );
 
-
     supabaseClient
         .channel(
             "admin-order-chat-" + orderId
         )
+
+        // TEXT MESSAGES
         .on(
             "postgres_changes",
             {
@@ -584,11 +585,35 @@ function subscribeToMessages() {
                     payload.new
                 );
 
-
-                // Reload messages immediately
                 loadMessages();
             }
         )
+
+        // CUSTOMER SCREENSHOTS
+        .on(
+            "postgres_changes",
+            {
+                event: "INSERT",
+                schema: "public",
+                table: "order_screenshots",
+                filter:
+                    "order_id=eq." + orderId
+            },
+            async payload => {
+
+                console.log(
+                    "New customer screenshot:",
+                    payload.new
+                );
+
+                await addImageToChat(
+                    payload.new,
+                    true
+                );
+            }
+        )
+
+        // SUBSCRIBE MUST BE LAST
         .subscribe(
             status => {
 
@@ -597,33 +622,8 @@ function subscribeToMessages() {
                     status
                 );
             }
-        )
-        .on(
-                "postgres_changes",
-                {
-                    event: "INSERT",
-                    schema: "public",
-                    table: "order_screenshots",
-                    filter:
-                        "order_id=eq." + orderId
-                },
-                async payload => {
-            
-                    console.log(
-                        "New customer screenshot:",
-                        payload.new
-                    );
-            
-                    await addImageToChat(
-                        payload.new,
-                        true
-                    );
-                }
-            );
-
-    
+        );
 }
-
 
 // ==============================
 // START
