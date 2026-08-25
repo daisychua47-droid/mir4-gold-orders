@@ -47,17 +47,41 @@ form.addEventListener("submit", async function (event) {
             throw error;
         }
 
-        message.innerHTML = `
-            <div style="margin-top:20px;">
-                <h3>ORDER RECEIVED</h3>
-                <p>Your order has been submitted successfully.</p>
-                <p>
-                    <strong>Order Number:</strong><br>
-                    ${data.order_number}
-                </p>
-                <p>Please wait for our confirmation.</p>
-            </div>
-        `;
+       const chatLink =
+    `chat.html?order=${data.order_id}&token=${encodeURIComponent(data.access_token)}`;
+
+message.innerHTML = `
+    <div style="margin-top:20px;">
+
+        <h3>ORDER RECEIVED</h3>
+
+        <p>
+            Your order has been submitted successfully.
+        </p>
+
+        <p>
+            <strong>Order Number:</strong><br>
+            ${data.order_number}
+        </p>
+
+        <p>
+            You can now open your private order chat.
+        </p>
+
+        <button
+            type="button"
+            onclick="window.location.href='${chatLink}'"
+        >
+            OPEN MY ORDER
+        </button>
+
+        <p style="font-size:12px; color:#9ca3af; margin-top:15px;">
+            Please save this order link.
+            It is your private access to this order.
+        </p>
+
+    </div>
+`;
 
         form.reset();
 
