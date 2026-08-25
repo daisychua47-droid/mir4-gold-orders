@@ -552,6 +552,55 @@ messageInput.addEventListener(
 
 
 // ==============================
+// REALTIME NEW MESSAGE
+// ==============================
+
+function subscribeToMessages() {
+
+    console.log(
+        "Starting realtime for order:",
+        orderId
+    );
+
+
+    supabaseClient
+        .channel(
+            "admin-order-chat-" + orderId
+        )
+        .on(
+            "postgres_changes",
+            {
+                event: "INSERT",
+                schema: "public",
+                table: "order_messages",
+                filter:
+                    "order_id=eq." + orderId
+            },
+            payload => {
+
+                console.log(
+                    "New message received:",
+                    payload.new
+                );
+
+
+                // Reload messages immediately
+                loadMessages();
+            }
+        )
+        .subscribe(
+            status => {
+
+                console.log(
+                    "Realtime status:",
+                    status
+                );
+            }
+        );
+}
+
+
+// ==============================
 // START
 // ==============================
 
@@ -575,6 +624,11 @@ async function start() {
 
 
     await loadOrder();
+
+
+    // Start realtime AFTER
+    // admin verification
+    subscribeToMessages();
 }
 
 
