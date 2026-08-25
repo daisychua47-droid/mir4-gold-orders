@@ -39,7 +39,7 @@ const sendButton = document.getElementById("sendButton");
 const closedMessage = document.getElementById("closedMessage");
 
 let currentOrder = null;
-
+let adminPresenceChannel = null;
 
 // ===============================
 // SHOW ERROR
@@ -432,9 +432,144 @@ messageInput.addEventListener(
 
 
 // ===============================
+// ADMIN VIEWING INDICATOR
+// ===============================
+
+function subscribeToAdminPresence() {
+
+    if (!orderId) {
+        return;
+    }
+
+    adminPresenceChannel =
+        supabaseClient.channel(
+            `order-presence-${orderId}`,
+            {
+                config: {
+                    presence: {
+                        key: "customer"
+                    }
+                }
+            }
+        );
+
+    adminPresenceChannel
+        .on(
+            "presence",
+            {
+                event: "sync"
+            },
+            () => {
+
+                updateAdminViewing();
+            }
+        )
+        .on(
+            "presence",
+            {
+                event: "join"
+            },
+            () => {
+
+                updateAdminViewing();
+            }
+        )
+        .on(
+            "presence",
+            {
+                event: "leave"
+            },
+            () => {
+
+                updateAdminViewing();
+            }
+        )
+        .subscribe(status => {
+
+            if (status === "SUBSCRIBED") {
+
+                updateAdminViewing();
+            }
+        });
+}
+
+
+// ===============================
+// UPDATE INDICATOR
+// ===============================
+
+function updateAdminViewing() {
+
+    if (!adminPresenceChannel) {
+        return;
+    }
+
+    const state =
+        adminPresenceChannel.presenceState();
+
+    const adminIsViewing =
+        Object.keys(state).some(
+            key => key === "admin"
+        );
+
+
+    let indicator =
+        document.getElementById(
+            "adminViewing"
+        );
+
+
+    if (!indicator) {
+
+        indicator =
+            document.createElement(
+                "div"
+            );
+
+        indicator.id =
+            "adminViewing";
+
+        indicator.style.cssText = `
+            display: none;
+            padding: 8px 12px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            background: #173b2a;
+            color: #7ee2a8;
+            font-size: 13px;
+            text-align: center;
+        `;
+
+
+        messagesBox.parentNode.insertBefore(
+            indicator,
+            messagesBox
+        );
+    }
+
+
+    if (adminIsViewing) {
+
+        indicator.style.display =
+            "block";
+
+        indicator.textContent =
+            "🟢 Admin is viewing this chat";
+
+    } else {
+
+        indicator.style.display =
+            "none";
+    }
+}
+
+// ===============================
 // START
 // ===============================
 
 loadOrder().then(() => {
+
     subscribeToMessages();
+
+    subscribeToAdminPresence();
 });
