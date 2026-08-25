@@ -76,3 +76,59 @@ loginForm.addEventListener("submit", async function(event) {
     window.location.href = "dashboard.html";
 
 });
+
+
+const forgotPassword =
+    document.getElementById("forgotPassword");
+
+
+if (forgotPassword) {
+
+    forgotPassword.addEventListener(
+        "click",
+        async function () {
+
+            const email =
+                document.getElementById("email").value.trim();
+
+
+            if (!email) {
+
+                alert(
+                    "Please enter your admin email first."
+                );
+
+                return;
+            }
+
+
+            const { error } =
+                await supabaseClient.auth
+                    .resetPasswordForEmail(
+                        email,
+                        {
+                            redirectTo:
+                                window.location.origin +
+                                "/mir4-gold-orders/reset-password.html"
+                        }
+                    );
+
+
+            if (error) {
+
+                alert(
+                    "Unable to send reset email.\n\n" +
+                    error.message
+                );
+
+                return;
+            }
+
+
+            alert(
+                "Password reset email sent!\n\n" +
+                "Please check your email."
+            );
+        }
+    );
+}
