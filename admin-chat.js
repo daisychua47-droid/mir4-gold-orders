@@ -728,6 +728,17 @@ window.addEventListener(
 
 
 // ==============================
+// SCROLL CHAT TO BOTTOM
+// ==============================
+
+function scrollToBottom() {
+
+    messagesBox.scrollTop =
+        messagesBox.scrollHeight;
+
+}
+
+// ==============================
 // LOAD IMAGES
 // ==============================
 
