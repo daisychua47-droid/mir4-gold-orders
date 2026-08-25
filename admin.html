@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>MIR4 GOLD - Admin</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: Arial, sans-serif;
+            background: #101827;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-card {
+            width: 100%;
+            max-width: 400px;
+            background: #202c3d;
+            padding: 30px;
+            border-radius: 16px;
+        }
+
+        h1 {
+            text-align: center;
+            margin: 0;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #94a3b8;
+            margin: 8px 0 30px;
+        }
+
+        label {
+            display: block;
+            margin: 18px 0 7px;
+            font-weight: bold;
+        }
+
+        input {
+            width: 100%;
+            padding: 13px;
+            border-radius: 8px;
+            border: 1px solid #3b4759;
+            background: #101827;
+            color: #ffffff;
+            font-size: 15px;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #64748b;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            margin-top: 25px;
+            border: none;
+            border-radius: 8px;
+            background: #ffffff;
+            color: #111827;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #message {
+            margin-top: 15px;
+            text-align: center;
+            color: #fca5a5;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="login-card">
+
+    <h1>MIR4 GOLD</h1>
+
+    <div class="subtitle">
+        Admin Login
+    </div>
+
+    <form id="loginForm">
+
+        <label for="email">
+            Email
+        </label>
+
+        <input
+            type="email"
+            id="email"
+            placeholder="Admin email"
+            required
+        >
+
+        <label for="password">
+            Password
+        </label>
+
+        <input
+            type="password"
+            id="password"
+            placeholder="Admin password"
+            required
+        >
+
+        <button
+            type="submit"
+            id="loginButton"
+        >
+            LOGIN
+        </button>
+
+    </form>
+
+    <div id="message"></div>
+
+</div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="admin.js"></script>
+
+</body>
+</html>
