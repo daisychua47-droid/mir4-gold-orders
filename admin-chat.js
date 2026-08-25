@@ -212,6 +212,7 @@ async function loadOrder() {
 
 
         await loadMessages();
+        await loadImages();
 
 
         if (
@@ -597,6 +598,30 @@ function subscribeToMessages() {
                 );
             }
         );
+        .on(
+                "postgres_changes",
+                {
+                    event: "INSERT",
+                    schema: "public",
+                    table: "order_screenshots",
+                    filter:
+                        "order_id=eq." + orderId
+                },
+                async payload => {
+            
+                    console.log(
+                        "New customer screenshot:",
+                        payload.new
+                    );
+            
+                    await addImageToChat(
+                        payload.new,
+                        true
+                    );
+                }
+            )
+
+    
 }
 
 
@@ -700,6 +725,124 @@ window.addEventListener(
     "beforeunload",
     stopAdminPresence
 );
+
+
+// ==============================
+// LOAD IMAGES
+// ==============================
+
+async function loadImages() {
+
+    const { data, error } =
+        await supabaseClient
+            .from("order_screenshots")
+            .select(
+                "id, order_id, file_path, original_name, created_at"
+            )
+            .eq("order_id", orderId)
+            .order("created_at", {
+                ascending: true
+            });
+
+    if (error) {
+        console.error(
+            "Load screenshots error:",
+            error
+        );
+        return;
+    }
+
+    for (const image of data || []) {
+        await addImageToChat(image, false);
+    }
+
+    scrollToBottom();
+}
+
+// ==============================
+// SHOW IMAGE TO MESSAGE
+// ==============================
+
+async function addImageToChat(image, scroll = true) {
+
+    if (
+        document.querySelector(
+            `[data-image-id="${image.id}"]`
+        )
+    ) {
+        return;
+    }
+
+    const { data, error } =
+        await supabaseClient.storage
+            .from("order-screenshots")
+            .createSignedUrl(
+                image.file_path,
+                3600
+            );
+
+    if (error) {
+        console.error(
+            "Signed URL error:",
+            error
+        );
+        return;
+    }
+
+    const div =
+        document.createElement("div");
+
+    div.className =
+        "message customer";
+
+    div.dataset.imageId =
+        image.id;
+
+    const time =
+        new Date(
+            image.created_at
+        ).toLocaleString();
+
+    div.innerHTML = `
+        <div class="sender">
+            CUSTOMER
+        </div>
+
+        <div class="bubble image-bubble">
+
+            <img
+                src="${escapeHtml(data.signedUrl)}"
+                class="chat-image"
+                alt="${escapeHtml(
+                    image.original_name || "Image"
+                )}"
+                loading="lazy"
+                onclick="window.open(
+                    this.src,
+                    '_blank'
+                )"
+            >
+
+        </div>
+
+        <div class="time">
+            ${escapeHtml(time)}
+        </div>
+    `;
+
+    messagesBox.appendChild(div);
+
+    if (scroll) {
+        scrollToBottom();
+    }
+}
+
+
+
+
+
+
+
 
 
 start().then(() => {
