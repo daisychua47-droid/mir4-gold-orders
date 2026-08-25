@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>MIR4 GOLD - Admin Dashboard</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #101827;
+            color: #ffffff;
+        }
+
+        .header {
+            background: #202c3d;
+            border-bottom: 1px solid #334155;
+            padding: 16px 20px;
+
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 21px;
+        }
+
+        .logout {
+            border: none;
+            background: #334155;
+            color: #ffffff;
+            padding: 9px 14px;
+            border-radius: 7px;
+            cursor: pointer;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            margin: auto;
+            padding: 25px 15px;
+        }
+
+        .top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            gap: 15px;
+        }
+
+        .top h2 {
+            margin: 0;
+        }
+
+        .refresh {
+            border: none;
+            background: #ffffff;
+            color: #111827;
+            padding: 10px 15px;
+            border-radius: 7px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .orders {
+            display: grid;
+            gap: 15px;
+        }
+
+        .order-card {
+            background: #202c3d;
+            border-radius: 12px;
+            padding: 18px;
+        }
+
+        .order-top {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .order-number {
+            font-weight: bold;
+            font-size: 17px;
+        }
+
+        .status {
+            padding: 5px 10px;
+            border-radius: 20px;
+            background: #334155;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .info {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            color: #cbd5e1;
+            font-size: 14px;
+        }
+
+        .info strong {
+            display: block;
+            color: #ffffff;
+            margin-top: 4px;
+        }
+
+        .actions {
+            margin-top: 15px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .actions button {
+            border: none;
+            padding: 9px 13px;
+            border-radius: 7px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .open {
+            background: #ffffff;
+            color: #111827;
+        }
+
+        .close {
+            background: #475569;
+            color: #ffffff;
+        }
+
+        .delete {
+            background: #7f1d1d;
+            color: #ffffff;
+        }
+
+        .loading,
+        .empty,
+        .error {
+            text-align: center;
+            padding: 60px 20px;
+            color: #94a3b8;
+        }
+
+        .error {
+            color: #fca5a5;
+        }
+
+        @media (max-width: 700px) {
+
+            .info {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .header h1 {
+                font-size: 18px;
+            }
+        }
+
+        @media (max-width: 450px) {
+
+            .info {
+                grid-template-columns: 1fr;
+            }
+
+            .order-top {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<header class="header">
+
+    <h1>MIR4 GOLD — ADMIN</h1>
+
+    <button
+        class="logout"
+        id="logoutButton"
+    >
+        LOGOUT
+    </button>
+
+</header>
+
+
+<main class="container">
+
+    <div class="top">
+
+        <h2>ALL ORDERS</h2>
+
+        <button
+            class="refresh"
+            id="refreshButton"
+        >
+            REFRESH
+        </button>
+
+    </div>
+
+
+    <div id="orders" class="orders">
+
+        <div class="loading">
+            Loading orders...
+        </div>
+
+    </div>
+
+</main>
+
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="dashboard.js"></script>
+
+</body>
+</html>
