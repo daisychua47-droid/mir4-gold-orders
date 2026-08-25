@@ -770,27 +770,17 @@ async function uploadImage() {
         return false;
     }
 
-
     if (!currentOrder) {
         return false;
     }
 
+    const file = selectedImage;
 
-    const file =
-        selectedImage;
-
-
-    uploadStatus.style.display =
-        "block";
-
-    uploadStatus.textContent =
-        "Uploading image...";
-
+    uploadStatus.style.display = "block";
+    uploadStatus.textContent = "Uploading image...";
 
     imageButton.disabled = true;
-
     sendButton.disabled = true;
-
 
     try {
 
@@ -804,14 +794,11 @@ async function uploadImage() {
                 .pop()
                 .toLowerCase();
 
-
         const safeExtension =
-            extension
-                .replace(
-                    /[^a-z0-9]/gi,
-                    ""
-                );
-
+            extension.replace(
+                /[^a-z0-9]/gi,
+                ""
+            );
 
         const filePath =
             `chat/${Number(orderId)}/${Date.now()}-${crypto.randomUUID()}.${safeExtension}`;
@@ -823,27 +810,20 @@ async function uploadImage() {
 
         const { error: uploadError } =
             await supabaseClient.storage
-                .from(
-                    "order-screenshots"
-                )
+                .from("order-screenshots")
                 .upload(
                     filePath,
                     file,
                     {
-                        cacheControl:
-                            "3600",
-
-                        contentType:
-                            file.type,
-
+                        cacheControl: "3600",
+                        contentType: file.type,
                         upsert: false
                     }
                 );
 
-
         if (uploadError) {
-
             console.error(
+                "Storage upload error:",
                 uploadError
             );
 
@@ -880,13 +860,14 @@ async function uploadImage() {
 
         if (error) {
 
-            console.error(error);
+            console.error(
+                "Database screenshot error:",
+                error
+            );
 
-            // Remove orphaned Storage file
+            // Delete uploaded file if DB save failed
             await supabaseClient.storage
-                .from(
-                    "order-screenshots"
-                )
+                .from("order-screenshots")
                 .remove([
                     filePath
                 ]);
@@ -896,13 +877,75 @@ async function uploadImage() {
 
 
         console.log(
-            "Image uploaded:",
+            "Screenshot saved:",
             data
         );
 
 
         // =========================
-        // RESET
+        // IMMEDIATELY SHOW IN CHAT
+        // =========================
+
+        const screenshotId =
+            data?.screenshot_id;
+
+        if (screenshotId) {
+
+            const imageData = {
+
+                id: screenshotId,
+
+                order_id:
+                    Number(orderId),
+
+                file_path:
+                    filePath,
+
+                original_name:
+                    file.name,
+
+                created_at:
+                    new Date().toISOString(),
+
+                // Customer is sending this image
+                sender_type:
+                    "customer"
+            };
+
+
+            // Remove empty message
+            const empty =
+                messagesBox.querySelector(
+                    ".empty"
+                );
+
+            if (empty) {
+                empty.remove();
+            }
+
+
+            addImageToChat(
+                imageData
+            );
+
+
+            const last =
+                messagesBox.lastElementChild;
+
+            if (last) {
+
+                last.dataset.imageId =
+                    screenshotId;
+
+            }
+
+
+            scrollToBottom();
+        }
+
+
+        // =========================
+        // RESET IMAGE
         // =========================
 
         selectedImage = null;
@@ -936,6 +979,7 @@ async function uploadImage() {
 
         return true;
 
+
     } catch (error) {
 
         console.error(
@@ -943,17 +987,15 @@ async function uploadImage() {
             error
         );
 
-
         alert(
             "Unable to upload image. Please try again."
         );
 
-
         uploadStatus.style.display =
             "none";
 
-
         return false;
+
 
     } finally {
 
@@ -964,7 +1006,6 @@ async function uploadImage() {
             false;
     }
 }
-
 
 // ===============================
 // SEND MESSAGE
