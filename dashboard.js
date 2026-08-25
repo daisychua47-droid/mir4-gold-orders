@@ -348,36 +348,55 @@ async function reopenOrder(orderId) {
 
 async function deleteOrder(orderId) {
 
-    if (!confirm(
-        "DELETE this order permanently?\n\n" +
+    const confirmed = confirm(
+        "DELETE this order?\n\n" +
         "This will permanently delete:\n" +
-        "• The order\n" +
-        "• All chat messages\n\n" +
+        "• Order\n" +
+        "• Messages\n" +
+        "• Order items\n" +
+        "• Screenshots\n" +
+        "• Customer information\n\n" +
         "This cannot be undone."
-    )) {
+    );
+
+    if (!confirmed) {
         return;
     }
 
-    const { error } =
-        await supabaseClient
-            .from("orders")
-            .delete()
-            .eq("id", orderId);
+    try {
 
-    if (error) {
-
-        alert(
-            "Unable to permanently delete order."
+        const { data, error } = await supabaseClient.rpc(
+            "delete_order",
+            {
+                p_order_id: Number(orderId)
+            }
         );
 
-        console.error(error);
+        if (error) {
 
-        return;
+            console.error("Delete error:", error);
+
+            alert(
+                "Unable to delete order.\n\n" +
+                error.message
+            );
+
+            return;
+        }
+
+        console.log("Order deleted:", data);
+
+        // Remove from the page immediately
+        await loadOrders();
+
+    } catch (err) {
+
+        console.error(err);
+
+        alert(
+            "An unexpected error occurred while deleting the order."
+        );
     }
-
-    // Refresh order list
-    await loadOrders();
-
 }
 // ===============================
 // LOGOUT
