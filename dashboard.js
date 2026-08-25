@@ -349,26 +349,25 @@ async function reopenOrder(orderId) {
 async function deleteOrder(orderId) {
 
     if (!confirm(
-        "Delete this order?"
+        "DELETE this order permanently?\n\n" +
+        "This will permanently delete:\n" +
+        "• The order\n" +
+        "• All chat messages\n\n" +
+        "This cannot be undone."
     )) {
         return;
     }
 
-
     const { error } =
         await supabaseClient
             .from("orders")
-            .update({
-                deleted_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            })
+            .delete()
             .eq("id", orderId);
-
 
     if (error) {
 
         alert(
-            "Unable to delete order."
+            "Unable to permanently delete order."
         );
 
         console.error(error);
@@ -376,11 +375,10 @@ async function deleteOrder(orderId) {
         return;
     }
 
+    // Refresh order list
+    await loadOrders();
 
-    loadOrders();
 }
-
-
 // ===============================
 // LOGOUT
 // ===============================
