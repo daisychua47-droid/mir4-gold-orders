@@ -761,13 +761,24 @@ const dashboardChannel =
         // --------------------------------
         // SUBSCRIBE
         // --------------------------------
-        .subscribe(function(status) {
+       .subscribe(function(status) {
 
-            console.log(
-                "Realtime status:",
-                status
-            );
-
+            console.log("================================");
+            console.log("ADMIN REALTIME STATUS:", status);
+            console.log("================================");
+        
+            if (status === "SUBSCRIBED") {
+                console.log("✅ REALTIME CONNECTED");
+            }
+        
+            if (status === "CHANNEL_ERROR") {
+                console.error("❌ REALTIME CHANNEL ERROR");
+            }
+        
+            if (status === "TIMED_OUT") {
+                console.error("❌ REALTIME TIMED OUT");
+            }
+        
         });
 // ======================================
 // REALTIME — NEW SCREENSHOTS
