@@ -10,11 +10,23 @@ const supabaseClient =
         SUPABASE_PUBLISHABLE_KEY
     );
 
+
+// ======================================================
+// URL
+// ======================================================
+
 const params =
-    new URLSearchParams(window.location.search);
+    new URLSearchParams(
+        window.location.search
+    );
 
 const orderId =
     Number(params.get("order"));
+
+
+// ======================================================
+// ELEMENTS
+// ======================================================
 
 const loading =
     document.getElementById("loading");
@@ -55,8 +67,19 @@ const sendButton =
 const closedMessage =
     document.getElementById("closedMessage");
 
+
 let realtimeChannel = null;
 let adminPresenceChannel = null;
+
+
+// ======================================================
+// NOTIFICATION STATE
+// ======================================================
+
+let notificationReady = false;
+
+let originalTitle =
+    document.title;
 
 
 // ======================================================
@@ -75,9 +98,11 @@ async function checkAdmin() {
         } =
             await supabaseClient.auth.getUser();
 
+
         if (error) {
             throw error;
         }
+
 
         if (!user) {
 
@@ -86,6 +111,7 @@ async function checkAdmin() {
 
             return false;
         }
+
 
         const {
             data,
@@ -97,9 +123,11 @@ async function checkAdmin() {
                 .eq("id", user.id)
                 .maybeSingle();
 
+
         if (adminError) {
             throw adminError;
         }
+
 
         if (!data) {
 
@@ -109,7 +137,9 @@ async function checkAdmin() {
             return false;
         }
 
+
         return true;
+
 
     } catch (error) {
 
@@ -118,14 +148,122 @@ async function checkAdmin() {
             error
         );
 
+
         showError(
             "Admin verification failed.<br><br>" +
-            escapeHtml(error.message)
+            escapeHtml(
+                error.message
+            )
         );
+
 
         return false;
     }
 }
+
+
+// ======================================================
+// ENABLE NOTIFICATIONS
+// ======================================================
+
+async function enableNotifications() {
+
+    if (
+        !("Notification" in window)
+    ) {
+
+        console.log(
+            "Browser notifications are not supported."
+        );
+
+        return;
+    }
+
+
+    if (
+        Notification.permission ===
+        "granted"
+    ) {
+
+        notificationReady = true;
+
+        console.log(
+            "✓ Browser notifications already enabled."
+        );
+
+        return;
+    }
+
+
+    if (
+        Notification.permission ===
+        "denied"
+    ) {
+
+        console.warn(
+            "Browser notifications are blocked."
+        );
+
+        return;
+    }
+
+
+    try {
+
+        const permission =
+            await Notification.requestPermission();
+
+
+        if (
+            permission ===
+            "granted"
+        ) {
+
+            notificationReady =
+                true;
+
+            console.log(
+                "✓ Browser notifications enabled."
+            );
+
+        } else {
+
+            console.warn(
+                "Notification permission:",
+                permission
+            );
+        }
+
+
+    } catch (error) {
+
+        console.error(
+            "Notification permission error:",
+            error
+        );
+    }
+}
+
+
+// ======================================================
+// USER INTERACTION = ENABLE NOTIFICATION
+// ======================================================
+
+document.addEventListener(
+    "click",
+    function() {
+
+        if (!notificationReady) {
+
+            enableNotifications();
+
+        }
+
+    },
+    {
+        once: true
+    }
+);
 
 
 // ======================================================
@@ -140,8 +278,9 @@ async function loadOrder() {
             "Invalid order ID."
         );
 
-        return;
+        return false;
     }
+
 
     try {
 
@@ -152,12 +291,17 @@ async function loadOrder() {
             await supabaseClient
                 .from("orders")
                 .select("*")
-                .eq("id", orderId)
+                .eq(
+                    "id",
+                    orderId
+                )
                 .maybeSingle();
+
 
         if (error) {
             throw error;
         }
+
 
         if (!data) {
 
@@ -165,13 +309,15 @@ async function loadOrder() {
                 "Order not found."
             );
 
-            return;
+            return false;
         }
+
 
         orderNumber.textContent =
             data.order_number ||
             data.id ||
             "-";
+
 
         customer.textContent =
             data.customer_name ||
@@ -179,9 +325,11 @@ async function loadOrder() {
             data.name ||
             "Customer";
 
+
         server.textContent =
             data.server ||
             "-";
+
 
         gold.textContent =
             Number(
@@ -191,9 +339,11 @@ async function loadOrder() {
             ).toLocaleString() +
             " G";
 
+
         status.textContent =
             data.status ||
             "-";
+
 
         if (
             String(data.status)
@@ -216,18 +366,26 @@ async function loadOrder() {
                 "none";
         }
 
+
         loading.style.display =
             "none";
+
 
         errorBox.style.display =
             "none";
 
+
         content.style.display =
             "block";
 
-        await loadMessages();
 
-        await loadImages();
+        // Load complete conversation
+
+        await loadChat();
+
+
+        return true;
+
 
     } catch (error) {
 
@@ -236,79 +394,179 @@ async function loadOrder() {
             error
         );
 
+
         showError(
             "Unable to load order.<br><br>" +
-            escapeHtml(error.message)
+            escapeHtml(
+                error.message
+            )
         );
+
+
+        return false;
     }
 }
 
 
 // ======================================================
-// LOAD MESSAGES
+// LOAD COMPLETE CHAT
 // ======================================================
 
-async function loadMessages() {
+async function loadChat() {
 
     try {
 
-        const {
-            data,
-            error
-        } =
-            await supabaseClient
-                .from("order_messages")
-                .select(
-                    "id, order_id, sender_type, message, attachment_path, created_at"
-                )
-                .eq(
-                    "order_id",
-                    orderId
-                )
-                .order(
-                    "created_at",
-                    {
-                        ascending: true
-                    }
-                );
+        const [
+            messagesResult,
+            imagesResult
+        ] =
+            await Promise.all([
 
-        if (error) {
-            throw error;
+                supabaseClient
+                    .from("order_messages")
+                    .select(
+                        "id, order_id, sender_type, message, attachment_path, created_at"
+                    )
+                    .eq(
+                        "order_id",
+                        orderId
+                    )
+                    .order(
+                        "created_at",
+                        {
+                            ascending: true
+                        }
+                    ),
+
+                supabaseClient
+                    .from("order_screenshots")
+                    .select(
+                        "id, order_id, file_path, original_name, created_at"
+                    )
+                    .eq(
+                        "order_id",
+                        orderId
+                    )
+                    .order(
+                        "created_at",
+                        {
+                            ascending: true
+                        }
+                    )
+            ]);
+
+
+        if (messagesResult.error) {
+            throw messagesResult.error;
         }
 
-        renderMessages(
-            data || []
+
+        if (imagesResult.error) {
+            throw imagesResult.error;
+        }
+
+
+        const messages =
+            messagesResult.data || [];
+
+
+        const images =
+            imagesResult.data || [];
+
+
+        // Combine messages + images
+
+        const chatItems = [];
+
+
+        messages.forEach(
+            message => {
+
+                chatItems.push({
+
+                    type: "message",
+
+                    id:
+                        message.id,
+
+                    created_at:
+                        message.created_at,
+
+                    data:
+                        message
+                });
+
+            }
         );
+
+
+        images.forEach(
+            image => {
+
+                chatItems.push({
+
+                    type: "image",
+
+                    id:
+                        image.id,
+
+                    created_at:
+                        image.created_at,
+
+                    data:
+                        image
+                });
+
+            }
+        );
+
+
+        // Sort by time
+
+        chatItems.sort(
+            (a, b) =>
+                new Date(
+                    a.created_at
+                ) -
+                new Date(
+                    b.created_at
+                )
+        );
+
+
+        renderChat(
+            chatItems
+        );
+
 
     } catch (error) {
 
         console.error(
-            "Load messages error:",
+            "Load chat error:",
             error
         );
 
+
         showError(
-            "Unable to load messages.<br><br>" +
-            escapeHtml(error.message)
+            "Unable to load chat.<br><br>" +
+            escapeHtml(
+                error.message
+            )
         );
     }
 }
 
 
 // ======================================================
-// RENDER TEXT MESSAGES
+// RENDER COMPLETE CHAT
 // ======================================================
 
-function renderMessages(messages) {
-
-    /*
-        Keep existing image messages.
-        Remove only text-message elements.
-    */
+function renderChat(items) {
 
     messagesBox.innerHTML = "";
 
-    if (!messages.length) {
+
+    if (!items.length) {
 
         messagesBox.innerHTML =
             `
@@ -320,223 +578,51 @@ function renderMessages(messages) {
         return;
     }
 
-    messages.forEach(item => {
 
-        const div =
-            document.createElement("div");
+    items.forEach(
+        item => {
 
-        const isAdmin =
-            String(
-                item.sender_type
-            ).toLowerCase() ===
-            "admin";
+            if (
+                item.type ===
+                "message"
+            ) {
 
-        div.className =
-            isAdmin
-                ? "message admin"
-                : "message customer";
+                addTextMessage(
+                    item.data
+                );
 
-        div.dataset.messageId =
-            item.id;
+            } else {
 
-        const sender =
-            isAdmin
-                ? "ADMIN"
-                : "CUSTOMER";
+                addImageToChat(
+                    item.data,
+                    false
+                );
+            }
 
-        const time =
-            new Date(
-                item.created_at
-            ).toLocaleString();
-
-        div.innerHTML =
-            `
-            <div class="sender">
-                ${sender}
-            </div>
-
-            <div class="bubble">
-                ${escapeHtml(
-                    item.message
-                )}
-            </div>
-
-            <div class="time">
-                ${escapeHtml(time)}
-            </div>
-            `;
-
-        messagesBox.appendChild(div);
-
-    });
-
-    scrollToBottom();
-}
-
-
-// ======================================================
-// SEND ADMIN MESSAGE
-// ======================================================
-
-async function sendMessage() {
-
-    const message =
-        messageInput.value.trim();
-
-    if (!message) {
-        return;
-    }
-
-    sendButton.disabled =
-        true;
-
-    sendButton.textContent =
-        "SENDING...";
-
-    try {
-
-        const {
-            error
-        } =
-            await supabaseClient
-                .from("order_messages")
-                .insert({
-                    order_id: orderId,
-                    sender_type: "admin",
-                    message: message,
-                    attachment_path: null
-                });
-
-        if (error) {
-            throw error;
         }
+    );
 
-        messageInput.value = "";
-
-        await loadMessages();
-
-    } catch (error) {
-
-        console.error(
-            "Send message error:",
-            error
-        );
-
-        alert(
-            "Unable to send message:\n\n" +
-            error.message
-        );
-
-    } finally {
-
-        sendButton.disabled =
-            false;
-
-        sendButton.textContent =
-            "SEND";
-    }
-}
-
-
-// ======================================================
-// LOAD CUSTOMER IMAGES
-// ======================================================
-
-async function loadImages() {
-
-    const {
-        data,
-        error
-    } =
-        await supabaseClient
-            .from("order_screenshots")
-            .select(
-                "id, order_id, file_path, original_name, created_at"
-            )
-            .eq(
-                "order_id",
-                orderId
-            )
-            .order(
-                "created_at",
-                {
-                    ascending: true
-                }
-            );
-
-    if (error) {
-
-        console.error(
-            "Load screenshots error:",
-            error
-        );
-
-        return;
-    }
-
-    for (const image of data || []) {
-
-        await addImageToChat(
-            image,
-            false
-        );
-    }
 
     scrollToBottom();
 }
 
 
 // ======================================================
-// SHOW CUSTOMER IMAGE
+// ADD TEXT MESSAGE
 // ======================================================
 
-async function addImageToChat(
-    image,
-    scroll = true
+function addTextMessage(
+    item
 ) {
 
     if (
         document.querySelector(
-            `[data-image-id="${image.id}"]`
+            `[data-message-id="${item.id}"]`
         )
     ) {
-        return;
-    }
-
-
-    /*
-        IMPORTANT:
-        Use PUBLIC URL instead of signed URL.
-    */
-
-    const {
-        data
-    } =
-        supabaseClient.storage
-            .from("order-screenshots")
-            .getPublicUrl(
-                image.file_path
-            );
-
-
-    if (
-        !data ||
-        !data.publicUrl
-    ) {
-
-        console.error(
-            "Unable to create public image URL:",
-            image
-        );
 
         return;
     }
-
-
-    console.log(
-        "IMAGE URL:",
-        data.publicUrl
-    );
 
 
     const div =
@@ -544,8 +630,147 @@ async function addImageToChat(
             "div"
         );
 
+
+    const isAdmin =
+        String(
+            item.sender_type
+        ).toLowerCase() ===
+        "admin";
+
+
+    div.className =
+        isAdmin
+            ? "message admin"
+            : "message customer";
+
+
+    div.dataset.messageId =
+        item.id;
+
+
+    const sender =
+        isAdmin
+            ? "ADMIN"
+            : "CUSTOMER";
+
+
+    const time =
+        new Date(
+            item.created_at
+        ).toLocaleString();
+
+
+    div.innerHTML =
+        `
+        <div class="sender">
+            ${sender}
+        </div>
+
+        <div class="bubble">
+            ${escapeHtml(
+                item.message
+            )}
+        </div>
+
+        <div class="time">
+            ${escapeHtml(
+                time
+            )}
+        </div>
+        `;
+
+
+    messagesBox.appendChild(
+        div
+    );
+}
+
+
+// ======================================================
+// IMAGE URL
+// ======================================================
+
+function getImageUrl(
+    filePath
+) {
+
+    if (!filePath) {
+        return "";
+    }
+
+
+    const cleanPath =
+        String(filePath)
+            .split("/")
+            .map(
+                part =>
+                    encodeURIComponent(
+                        part
+                    )
+            )
+            .join("/");
+
+
+    return (
+        SUPABASE_URL +
+        "/storage/v1/object/public/order-screenshots/" +
+        cleanPath
+    );
+}
+
+
+// ======================================================
+// ADD IMAGE
+// ======================================================
+
+function addImageToChat(
+    image,
+    scroll = true
+) {
+
+    if (!image || !image.id) {
+        return;
+    }
+
+
+    // Prevent duplicate
+
+    if (
+        document.querySelector(
+            `[data-image-id="${image.id}"]`
+        )
+    ) {
+
+        return;
+    }
+
+
+    const imageUrl =
+        getImageUrl(
+            image.file_path
+        );
+
+
+    if (!imageUrl) {
+
+        console.error(
+            "Invalid image path:",
+            image
+        );
+
+        return;
+    }
+
+
+    const div =
+        document.createElement(
+            "div"
+        );
+
+
     div.className =
         "message customer";
+
 
     div.dataset.imageId =
         image.id;
@@ -567,7 +792,7 @@ async function addImageToChat(
 
             <img
                 src="${escapeHtml(
-                    data.publicUrl
+                    imageUrl
                 )}"
                 class="chat-image"
                 alt="${escapeHtml(
@@ -575,29 +800,88 @@ async function addImageToChat(
                     "Customer Image"
                 )}"
                 loading="lazy"
-                onclick="window.open(
-                    this.src,
-                    '_blank'
-                )"
-                onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
             >
 
             <div
+                class="image-error"
                 style="
                     display:none;
-                    padding:10px;
                     color:#fecaca;
+                    padding:10px;
                 "
             >
                 Unable to display image.
+                <br>
+                <a
+                    href="${escapeHtml(
+                        imageUrl
+                    )}"
+                    target="_blank"
+                    rel="noopener"
+                    style="
+                        color:#93c5fd;
+                        display:inline-block;
+                        margin-top:6px;
+                    "
+                >
+                    Open image
+                </a>
             </div>
 
         </div>
 
         <div class="time">
-            ${escapeHtml(time)}
+            ${escapeHtml(
+                time
+            )}
         </div>
         `;
+
+
+    const img =
+        div.querySelector(
+            ".chat-image"
+        );
+
+
+    const errorMessage =
+        div.querySelector(
+            ".image-error"
+        );
+
+
+    img.addEventListener(
+        "click",
+        function() {
+
+            window.open(
+                imageUrl,
+                "_blank"
+            );
+
+        }
+    );
+
+
+    img.addEventListener(
+        "error",
+        function() {
+
+            console.error(
+                "IMAGE FAILED:",
+                imageUrl
+            );
+
+
+            img.style.display =
+                "none";
+
+
+            errorMessage.style.display =
+                "block";
+
+        }
+    );
 
 
     messagesBox.appendChild(
@@ -606,7 +890,87 @@ async function addImageToChat(
 
 
     if (scroll) {
+
         scrollToBottom();
+    }
+}
+
+
+// ======================================================
+// SEND ADMIN MESSAGE
+// ======================================================
+
+async function sendMessage() {
+
+    const message =
+        messageInput.value.trim();
+
+
+    if (!message) {
+        return;
+    }
+
+
+    sendButton.disabled =
+        true;
+
+
+    sendButton.textContent =
+        "SENDING...";
+
+
+    try {
+
+        const {
+            error
+        } =
+            await supabaseClient
+                .from("order_messages")
+                .insert({
+
+                    order_id:
+                        orderId,
+
+                    sender_type:
+                        "admin",
+
+                    message:
+                        message,
+
+                    attachment_path:
+                        null
+                });
+
+
+        if (error) {
+            throw error;
+        }
+
+
+        messageInput.value = "";
+
+
+    } catch (error) {
+
+        console.error(
+            "Send message error:",
+            error
+        );
+
+
+        alert(
+            "Unable to send message:\n\n" +
+            error.message
+        );
+
+
+    } finally {
+
+        sendButton.disabled =
+            false;
+
+        sendButton.textContent =
+            "SEND";
     }
 }
 
@@ -617,8 +981,21 @@ async function addImageToChat(
 
 function subscribeToMessages() {
 
+    if (
+        realtimeChannel
+    ) {
+
+        supabaseClient.removeChannel(
+            realtimeChannel
+        );
+
+        realtimeChannel =
+            null;
+    }
+
+
     console.log(
-        "Starting realtime for order:",
+        "Starting realtime:",
         orderId
     );
 
@@ -627,13 +1004,15 @@ function subscribeToMessages() {
         supabaseClient
             .channel(
                 "admin-order-chat-" +
-                orderId
+                orderId +
+                "-" +
+                Date.now()
             );
 
 
-    // -----------------------------------------------
-    // NEW TEXT MESSAGE
-    // -----------------------------------------------
+    // ==================================================
+    // NEW TEXT
+    // ==================================================
 
     realtimeChannel.on(
         "postgres_changes",
@@ -642,8 +1021,7 @@ function subscribeToMessages() {
             schema: "public",
             table: "order_messages",
             filter:
-                "order_id=eq." +
-                orderId
+                `order_id=eq.${orderId}`
         },
         payload => {
 
@@ -653,30 +1031,39 @@ function subscribeToMessages() {
             );
 
 
-            /*
-                Reload messages so admin gets
-                the newest customer message.
-            */
+            // IMPORTANT:
+            // DO NOT call loadMessages()
+            // because that used to delete images.
 
-            loadMessages();
-
-
-            const sender =
-                String(
-                    payload.new.sender_type
-                ).toLowerCase();
+            const empty =
+                messagesBox.querySelector(
+                    ".empty"
+                );
 
 
-            /*
-                Only notify when CUSTOMER sends.
-            */
+            if (empty) {
+                empty.remove();
+            }
+
+
+            addTextMessage(
+                payload.new
+            );
+
+
+            scrollToBottom();
+
+
+            // Only notify customer messages
 
             if (
-                sender ===
+                String(
+                    payload.new.sender_type
+                ).toLowerCase() ===
                 "customer"
             ) {
 
-                showNewMessageNotification(
+                notifyAdmin(
                     "New Customer Message",
                     payload.new.message ||
                     "Customer sent a message."
@@ -686,9 +1073,9 @@ function subscribeToMessages() {
     );
 
 
-    // -----------------------------------------------
-    // NEW CUSTOMER IMAGE
-    // -----------------------------------------------
+    // ==================================================
+    // NEW IMAGE
+    // ==================================================
 
     realtimeChannel.on(
         "postgres_changes",
@@ -697,24 +1084,34 @@ function subscribeToMessages() {
             schema: "public",
             table: "order_screenshots",
             filter:
-                "order_id=eq." +
-                orderId
+                `order_id=eq.${orderId}`
         },
-        async payload => {
+        payload => {
 
             console.log(
-                "REALTIME CUSTOMER IMAGE:",
+                "REALTIME IMAGE:",
                 payload.new
             );
 
 
-            await addImageToChat(
+            const empty =
+                messagesBox.querySelector(
+                    ".empty"
+                );
+
+
+            if (empty) {
+                empty.remove();
+            }
+
+
+            addImageToChat(
                 payload.new,
                 true
             );
 
 
-            showNewMessageNotification(
+            notifyAdmin(
                 "New Customer Image",
                 payload.new.original_name ||
                 "Customer sent an image."
@@ -724,16 +1121,16 @@ function subscribeToMessages() {
 
 
     realtimeChannel.subscribe(
-        status => {
+        realtimeStatus => {
 
             console.log(
                 "Realtime status:",
-                status
+                realtimeStatus
             );
 
 
             if (
-                status ===
+                realtimeStatus ===
                 "SUBSCRIBED"
             ) {
 
@@ -742,23 +1139,25 @@ function subscribeToMessages() {
                 );
             }
 
+
             if (
-                status ===
+                realtimeStatus ===
                 "CHANNEL_ERROR"
             ) {
 
                 console.error(
-                    "✗ REALTIME CHANNEL ERROR"
+                    "✗ ADMIN CHAT REALTIME ERROR"
                 );
             }
 
+
             if (
-                status ===
+                realtimeStatus ===
                 "TIMED_OUT"
             ) {
 
                 console.error(
-                    "✗ REALTIME TIMED OUT"
+                    "✗ ADMIN CHAT REALTIME TIMEOUT"
                 );
             }
         }
@@ -767,27 +1166,24 @@ function subscribeToMessages() {
 
 
 // ======================================================
-// NOTIFICATION
+// ADMIN NOTIFICATION
 // ======================================================
 
-function showNewMessageNotification(
+function notifyAdmin(
     title,
     body
 ) {
 
     console.log(
-        "NOTIFICATION:",
+        "ADMIN NOTIFICATION:",
         title,
         body
     );
 
 
-    /*
-        Change browser tab title.
-    */
-
-    const oldTitle =
-        document.title;
+    // ----------------------------------------------
+    // TAB TITLE
+    // ----------------------------------------------
 
     document.title =
         "🔔 " +
@@ -795,70 +1191,64 @@ function showNewMessageNotification(
 
 
     setTimeout(
-        () => {
+        function() {
 
             document.title =
-                oldTitle;
+                originalTitle;
 
         },
-        5000
+        6000
     );
 
 
-    /*
-        Browser notification.
-    */
+    // ----------------------------------------------
+    // BROWSER NOTIFICATION
+    // ----------------------------------------------
 
     if (
-        "Notification" in window
+        "Notification" in window &&
+        Notification.permission ===
+        "granted"
     ) {
 
-        if (
-            Notification.permission ===
-            "granted"
-        ) {
+        try {
 
             new Notification(
                 title,
                 {
-                    body: body,
+                    body:
+                        body,
                     icon:
-                        "/mir4-gold-orders/favicon.ico"
+                        "/mir4-gold-orders/favicon.ico",
+                    tag:
+                        "mir4-order-" +
+                        orderId
                 }
             );
 
-        }
+        } catch (error) {
 
-        else if (
-            Notification.permission ===
-            "default"
-        ) {
-
-            Notification.requestPermission()
-                .then(permission => {
-
-                    if (
-                        permission ===
-                        "granted"
-                    ) {
-
-                        new Notification(
-                            title,
-                            {
-                                body: body
-                            }
-                        );
-                    }
-
-                })
-                .catch(() => {});
+            console.error(
+                "Notification error:",
+                error
+            );
         }
     }
 
 
-    /*
-        Simple sound.
-    */
+    // ----------------------------------------------
+    // SOUND
+    // ----------------------------------------------
+
+    playNotificationSound();
+}
+
+
+// ======================================================
+// NOTIFICATION SOUND
+// ======================================================
+
+function playNotificationSound() {
 
     try {
 
@@ -866,40 +1256,72 @@ function showNewMessageNotification(
             window.AudioContext ||
             window.webkitAudioContext;
 
-        if (AudioContext) {
 
-            const audioContext =
-                new AudioContext();
-
-            const oscillator =
-                audioContext.createOscillator();
-
-            const gain =
-                audioContext.createGain();
-
-            oscillator.frequency.value =
-                880;
-
-            gain.gain.value =
-                0.08;
-
-            oscillator.connect(
-                gain
-            );
-
-            gain.connect(
-                audioContext.destination
-            );
-
-            oscillator.start();
-
-            oscillator.stop(
-                audioContext.currentTime +
-                0.15
-            );
+        if (!AudioContext) {
+            return;
         }
 
-    } catch (e) {
+
+        const audioContext =
+            new AudioContext();
+
+
+        const oscillator =
+            audioContext.createOscillator();
+
+
+        const gain =
+            audioContext.createGain();
+
+
+        oscillator.type =
+            "sine";
+
+
+        oscillator.frequency.value =
+            880;
+
+
+        gain.gain.setValueAtTime(
+            0.001,
+            audioContext.currentTime
+        );
+
+
+        gain.gain.exponentialRampToValueAtTime(
+            0.15,
+            audioContext.currentTime +
+            0.02
+        );
+
+
+        gain.gain.exponentialRampToValueAtTime(
+            0.001,
+            audioContext.currentTime +
+            0.25
+        );
+
+
+        oscillator.connect(
+            gain
+        );
+
+
+        gain.connect(
+            audioContext.destination
+        );
+
+
+        oscillator.start();
+
+
+        oscillator.stop(
+            audioContext.currentTime +
+            0.25
+        );
+
+
+    } catch (error) {
 
         console.log(
             "Notification sound unavailable."
@@ -919,43 +1341,61 @@ function startAdminPresence() {
     }
 
 
+    if (
+        adminPresenceChannel
+    ) {
+
+        supabaseClient.removeChannel(
+            adminPresenceChannel
+        );
+    }
+
+
     adminPresenceChannel =
         supabaseClient.channel(
             `order-presence-${orderId}`,
             {
                 config: {
+
                     presence: {
-                        key: "admin"
+
+                        key:
+                            "admin"
                     }
                 }
             }
         );
 
 
-    adminPresenceChannel
-        .subscribe(
-            async channelStatus => {
+    adminPresenceChannel.subscribe(
+        async channelStatus => {
 
-                if (
-                    channelStatus ===
-                    "SUBSCRIBED"
-                ) {
+            if (
+                channelStatus ===
+                "SUBSCRIBED"
+            ) {
 
-                    await adminPresenceChannel.track({
-                        role: "admin",
-                        viewing: true,
-                        online_at:
-                            new Date()
-                                .toISOString()
-                    });
+                await adminPresenceChannel.track({
 
-                    console.log(
-                        "Admin viewing order:",
-                        orderId
-                    );
-                }
+                    role:
+                        "admin",
+
+                    viewing:
+                        true,
+
+                    online_at:
+                        new Date()
+                            .toISOString()
+                });
+
+
+                console.log(
+                    "Admin viewing order:",
+                    orderId
+                );
             }
-        );
+        }
+    );
 }
 
 
@@ -965,18 +1405,25 @@ function startAdminPresence() {
 
 function stopAdminPresence() {
 
-    if (!adminPresenceChannel) {
-        return;
-    }
-
-    adminPresenceChannel.untrack();
-
-    supabaseClient.removeChannel(
+    if (
         adminPresenceChannel
-    );
+    ) {
 
-    adminPresenceChannel =
-        null;
+        try {
+
+            adminPresenceChannel.untrack();
+
+        } catch (e) {}
+
+
+        supabaseClient.removeChannel(
+            adminPresenceChannel
+        );
+
+
+        adminPresenceChannel =
+            null;
+    }
 }
 
 
@@ -995,6 +1442,7 @@ function scrollToBottom() {
     if (!messagesBox) {
         return;
     }
+
 
     messagesBox.scrollTop =
         messagesBox.scrollHeight;
@@ -1016,16 +1464,21 @@ function goBack() {
 // ERROR
 // ======================================================
 
-function showError(message) {
+function showError(
+    message
+) {
 
     loading.style.display =
         "none";
 
+
     content.style.display =
         "none";
 
+
     errorBox.style.display =
         "block";
+
 
     errorBox.innerHTML =
         message;
@@ -1033,20 +1486,24 @@ function showError(message) {
 
 
 // ======================================================
-// ESCAPE HTML
+// ESCAPE
 // ======================================================
 
-function escapeHtml(value) {
+function escapeHtml(
+    value
+) {
 
     const div =
         document.createElement(
             "div"
         );
 
+
     div.textContent =
         value == null
             ? ""
             : String(value);
+
 
     return div.innerHTML;
 }
@@ -1093,6 +1550,12 @@ async function start() {
     );
 
 
+    // Enable notification permission
+    // while page is being interacted with
+
+    enableNotifications();
+
+
     const isAdmin =
         await checkAdmin();
 
@@ -1102,19 +1565,30 @@ async function start() {
     }
 
 
-    /*
-        Start realtime BEFORE loading the data.
-        This reduces the chance of missing a new
-        customer message while the page is loading.
-    */
+    // Start realtime first
 
     subscribeToMessages();
 
 
-    await loadOrder();
+    // Load order + complete chat
 
+    const loaded =
+        await loadOrder();
+
+
+    if (!loaded) {
+        return;
+    }
+
+
+    // Presence
 
     startAdminPresence();
+
+
+    console.log(
+        "✓ Admin chat ready"
+    );
 }
 
 
