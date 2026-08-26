@@ -657,14 +657,62 @@ refreshButton.addEventListener(
 
 
 // ======================================
-// REALTIME — NEW MESSAGES
+// REALTIME — ADMIN DASHBOARD
 // ======================================
 
-const messageChannel =
+const dashboardChannel =
     supabaseClient
-        .channel(
-            "admin-dashboard-messages"
+        .channel("admin-dashboard-realtime")
+
+        // --------------------------------
+        // NEW ORDER
+        // --------------------------------
+        .on(
+            "postgres_changes",
+            {
+                event: "INSERT",
+                schema: "public",
+                table: "orders"
+            },
+            function(payload) {
+
+                console.log(
+                    "NEW ORDER:",
+                    payload.new
+                );
+
+                loadOrders();
+
+                playNotificationSound();
+
+            }
         )
+
+        // --------------------------------
+        // ORDER UPDATED
+        // --------------------------------
+        .on(
+            "postgres_changes",
+            {
+                event: "UPDATE",
+                schema: "public",
+                table: "orders"
+            },
+            function(payload) {
+
+                console.log(
+                    "ORDER UPDATED:",
+                    payload.new
+                );
+
+                loadOrders();
+
+            }
+        )
+
+        // --------------------------------
+        // NEW CUSTOMER MESSAGE
+        // --------------------------------
         .on(
             "postgres_changes",
             {
@@ -675,18 +723,52 @@ const messageChannel =
             function(payload) {
 
                 console.log(
-                    "New message:",
+                    "NEW MESSAGE:",
                     payload.new
                 );
 
                 loadOrders();
 
                 playNotificationSound();
+
             }
         )
-        .subscribe();
 
+        // --------------------------------
+        // NEW CUSTOMER SCREENSHOT
+        // --------------------------------
+        .on(
+            "postgres_changes",
+            {
+                event: "INSERT",
+                schema: "public",
+                table: "order_screenshots"
+            },
+            function(payload) {
 
+                console.log(
+                    "NEW SCREENSHOT:",
+                    payload.new
+                );
+
+                loadOrders();
+
+                playNotificationSound();
+
+            }
+        )
+
+        // --------------------------------
+        // SUBSCRIBE
+        // --------------------------------
+        .subscribe(function(status) {
+
+            console.log(
+                "Realtime status:",
+                status
+            );
+
+        });
 // ======================================
 // REALTIME — NEW SCREENSHOTS
 // ======================================
