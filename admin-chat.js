@@ -72,6 +72,30 @@ let realtimeChannel = null;
 let adminPresenceChannel = null;
 
 
+const imageInput =
+    document.getElementById("imageInput");
+
+const attachButton =
+    document.getElementById("attachButton");
+
+const imagePreview =
+    document.getElementById("imagePreview");
+
+const previewImage =
+    document.getElementById("previewImage");
+
+const previewName =
+    document.getElementById("previewName");
+
+const previewSize =
+    document.getElementById("previewSize");
+
+const removeImage =
+    document.getElementById("removeImage");
+
+let selectedImage = null;
+
+
 // ======================================================
 // NOTIFICATION STATE
 // ======================================================
