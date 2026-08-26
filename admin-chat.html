@@ -213,6 +213,98 @@ body {
     border-top: 1px solid #2d394b;
 }
 
+ .attach {
+    width: 45px;
+    min-width: 45px;
+    border: 1px solid #3b4759;
+    border-radius: 8px;
+    background: #182233;
+    color: #ffffff;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+.attach:hover {
+    background: #334155;
+}
+
+.image-preview {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 15px;
+    border-top: 1px solid #2d394b;
+    background: #111b2b;
+}
+
+.image-preview img {
+    width: 55px;
+    height: 55px;
+    object-fit: cover;
+    border-radius: 7px;
+    border: 1px solid #475569;
+}
+
+.preview-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.preview-info strong {
+    display: block;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.preview-info small {
+    display: block;
+    color: #94a3b8;
+    margin-top: 4px;
+}
+
+#removeImage {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 6px;
+    background: #991b1b;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+.image-bubble {
+    padding: 6px !important;
+}
+
+.chat-image {
+    display: block;
+    max-width: 420px;
+    max-height: 420px;
+    width: auto;
+    height: auto;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+@media (max-width: 600px) {
+
+    .chat-image {
+        max-width: 280px;
+        max-height: 350px;
+    }
+
+    .composer {
+        flex-wrap: wrap;
+    }
+
+    .attach {
+        height: 48px;
+    }
+}   
+
 @media (max-width: 600px) {
 
     .container {
@@ -338,20 +430,55 @@ body {
 
             <div id="composer" class="composer">
 
-                <textarea
-                    id="messageInput"
-                    placeholder="Type your reply..."
-                ></textarea>
-
-                <button
-                    id="sendButton"
-                    class="send"
+                    <input
+                        type="file"
+                        id="imageInput"
+                        accept="image/png,image/jpeg,image/webp"
+                        style="display:none;"
+                    >
+                
+                    <button
+                        type="button"
+                        id="attachButton"
+                        class="attach"
+                        title="Send image"
+                    >
+                        📎
+                    </button>
+                
+                    <textarea
+                        id="messageInput"
+                        placeholder="Type your reply..."
+                    ></textarea>
+                
+                    <button
+                        id="sendButton"
+                        class="send"
+                    >
+                        SEND
+                    </button>
+                
+                </div>
+                
+                <div
+                    id="imagePreview"
+                    class="image-preview"
+                    style="display:none;"
                 >
-                    SEND
-                </button>
-
-            </div>
-
+                    <img id="previewImage">
+                
+                    <div class="preview-info">
+                        <strong id="previewName"></strong>
+                        <small id="previewSize"></small>
+                    </div>
+                
+                    <button
+                        type="button"
+                        id="removeImage"
+                    >
+                        ×
+                    </button>
+                </div>
 
             <div
                 id="closedMessage"
