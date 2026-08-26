@@ -155,7 +155,33 @@ async function loadOrders() {
 
     renderOrders(ordersWithUnread);
 }
+// ===============================
+// NOTIFICATIONS
+// ===============================
 
+let notificationEnabled = false;
+
+async function requestNotificationPermission() {
+
+    if (!("Notification" in window)) {
+        console.log("Browser notifications are not supported.");
+        return;
+    }
+
+    if (Notification.permission === "granted") {
+        notificationEnabled = true;
+        return;
+    }
+
+    if (Notification.permission === "default") {
+
+        const permission =
+            await Notification.requestPermission();
+
+        notificationEnabled =
+            permission === "granted";
+    }
+}
 
 // ======================================
 // GET UNREAD COUNT
@@ -913,7 +939,7 @@ async function start() {
         return;
     }
 
-
+    await requestNotificationPermission();
     await loadOrders();
 }
 
