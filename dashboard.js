@@ -21,240 +21,46 @@ const logoutButton =
     document.getElementById("logoutButton");
 
 
-let currentAdminId = null;
-
-let realtimeChannel = null;
-
-let unreadCounts = {};
-
-let originalTitle =
-    document.title;
-
-
-// =====================================================
+// ======================================
 // CHECK ADMIN LOGIN
-// =====================================================
+// ======================================
 
 async function checkAdmin() {
 
     const {
-        data: {
-            user
-        },
-        error
-    } =
-        await supabaseClient.auth.getUser();
+        data: { user }
+    } = await supabaseClient.auth.getUser();
 
+    if (!user) {
 
-    if (error || !user) {
-
-        window.location.href =
-            "admin.html";
+        window.location.href = "admin.html";
 
         return null;
     }
 
-
-    const {
-        data,
-        error: adminError
-    } =
+    const { data, error } =
         await supabaseClient
             .from("admin_users")
             .select("id")
             .eq("id", user.id)
             .maybeSingle();
 
-
-    if (
-        adminError ||
-        !data
-    ) {
+    if (error || !data) {
 
         await supabaseClient.auth.signOut();
 
-        window.location.href =
-            "admin.html";
+        window.location.href = "admin.html";
 
         return null;
     }
-
-
-    currentAdminId =
-        user.id;
-
 
     return user;
 }
 
 
-// =====================================================
-// LOAD UNREAD COUNTS
-// =====================================================
-
-async function loadUnreadCounts() {
-
-    unreadCounts = {};
-
-
-    if (!currentAdminId) {
-        return;
-    }
-
-
-    const {
-        data,
-        error
-    } =
-        await supabaseClient
-            .from("admin_order_reads")
-            .select(
-                "order_id, last_read_at"
-            )
-            .eq(
-                "admin_id",
-                currentAdminId
-            );
-
-
-    if (error) {
-
-        console.error(
-            "Unable to load read status:",
-            error
-        );
-
-        return;
-    }
-
-
-    if (!data || data.length === 0) {
-        return;
-    }
-
-
-    /*
-     * Get all customer messages and images.
-     */
-
-    const [
-        messagesResult,
-        imagesResult
-    ] =
-        await Promise.all([
-
-            supabaseClient
-                .from("order_messages")
-                .select(
-                    "order_id, created_at, sender_type"
-                )
-                .eq(
-                    "sender_type",
-                    "customer"
-                ),
-
-            supabaseClient
-                .from("order_screenshots")
-                .select(
-                    "order_id, created_at, sender_type"
-                )
-                .eq(
-                    "sender_type",
-                    "customer"
-                )
-        ]);
-
-
-    if (messagesResult.error) {
-
-        console.error(
-            "Unread messages error:",
-            messagesResult.error
-        );
-
-        return;
-    }
-
-
-    if (imagesResult.error) {
-
-        console.error(
-            "Unread images error:",
-            imagesResult.error
-        );
-
-        return;
-    }
-
-
-    const items = [
-
-        ...(messagesResult.data || [])
-            .map(item => ({
-                order_id:
-                    item.order_id,
-
-                created_at:
-                    item.created_at
-            })),
-
-        ...(imagesResult.data || [])
-            .map(item => ({
-                order_id:
-                    item.order_id,
-
-                created_at:
-                    item.created_at
-            }))
-    ];
-
-
-    /*
-     * Count everything newer than last_read_at.
-     */
-
-    data.forEach(read => {
-
-        const lastRead =
-            new Date(
-                read.last_read_at
-            );
-
-
-        const count =
-            items.filter(item => {
-
-                return (
-                    Number(
-                        item.order_id
-                    ) ===
-                    Number(
-                        read.order_id
-                    )
-                    &&
-                    new Date(
-                        item.created_at
-                    ) >
-                    lastRead
-                );
-
-            }).length;
-
-
-        if (count > 0) {
-
-            unreadCounts[
-                read.order_id
-            ] = count;
-        }
-
-    });
-}
-
-
-// =====================================================
+// ======================================
 // LOAD ORDERS
-// =====================================================
+// ======================================
 
 async function loadOrders() {
 
@@ -266,9 +72,16 @@ async function loadOrders() {
 
 
     const {
-        data,
-        error
-    } =
+        data: { user }
+    } = await supabaseClient.auth.getUser();
+
+
+    if (!user) {
+        return;
+    }
+
+
+    const { data, error } =
         await supabaseClient
             .from("orders")
             .select(`
@@ -280,34 +93,26 @@ async function loadOrders() {
                 notes,
                 created_at,
                 customer_id,
+                admin_last_read_at,
                 customers (
                     contact_name
                 )
             `)
-            .is(
-                "deleted_at",
-                null
-            )
-            .order(
-                "created_at",
-                {
-                    ascending: false
-                }
-            );
+            .is("deleted_at", null)
+            .order("created_at", {
+                ascending: false
+            });
 
 
     if (error) {
 
         console.error(error);
 
-
         ordersContainer.innerHTML = `
             <div class="error">
                 Unable to load orders.
                 <br><br>
-                ${escapeHtml(
-                    error.message
-                )}
+                ${escapeHtml(error.message)}
             </div>
         `;
 
@@ -315,13 +120,7 @@ async function loadOrders() {
     }
 
 
-    await loadUnreadCounts();
-
-
-    if (
-        !data ||
-        data.length === 0
-    ) {
+    if (!data || data.length === 0) {
 
         ordersContainer.innerHTML = `
             <div class="empty">
@@ -333,29 +132,135 @@ async function loadOrders() {
     }
 
 
-    renderOrders(data);
+    // Load unread counts
+    const ordersWithUnread =
+        await Promise.all(
+            data.map(
+                async order => {
+
+                    const unread =
+                        await getUnreadCount(order);
+
+                    return {
+                        ...order,
+                        unreadMessages:
+                            unread.messages,
+                        unreadImages:
+                            unread.images
+                    };
+                }
+            )
+        );
+
+
+    renderOrders(ordersWithUnread);
 }
 
 
-// =====================================================
+// ======================================
+// GET UNREAD COUNT
+// ======================================
+
+async function getUnreadCount(order) {
+
+    const lastRead =
+        order.admin_last_read_at
+            ? new Date(order.admin_last_read_at)
+            : new Date(0);
+
+
+    // ------------------------------
+    // CUSTOMER MESSAGES
+    // ------------------------------
+
+    const {
+        count: messageCount,
+        error: messageError
+    } =
+        await supabaseClient
+            .from("order_messages")
+            .select(
+                "id",
+                {
+                    count: "exact",
+                    head: true
+                }
+            )
+            .eq("order_id", order.id)
+            .eq("sender_type", "customer")
+            .gt(
+                "created_at",
+                lastRead.toISOString()
+            );
+
+
+    if (messageError) {
+
+        console.error(
+            "Unread message error:",
+            messageError
+        );
+    }
+
+
+    // ------------------------------
+    // CUSTOMER SCREENSHOTS
+    // ------------------------------
+
+    const {
+        count: imageCount,
+        error: imageError
+    } =
+        await supabaseClient
+            .from("order_screenshots")
+            .select(
+                "id",
+                {
+                    count: "exact",
+                    head: true
+                }
+            )
+            .eq("order_id", order.id)
+            .eq("sender_type", "customer")
+            .gt(
+                "created_at",
+                lastRead.toISOString()
+            );
+
+
+    if (imageError) {
+
+        console.error(
+            "Unread image error:",
+            imageError
+        );
+    }
+
+
+    return {
+
+        messages:
+            messageCount || 0,
+
+        images:
+            imageCount || 0
+    };
+}
+
+
+// ======================================
 // RENDER ORDERS
-// =====================================================
+// ======================================
 
-function renderOrders(
-    orders
-) {
+function renderOrders(orders) {
 
-    ordersContainer.innerHTML =
-        "";
+    ordersContainer.innerHTML = "";
 
 
     orders.forEach(order => {
 
         const card =
-            document.createElement(
-                "div"
-            );
-
+            document.createElement("div");
 
         card.className =
             "order-card";
@@ -367,49 +272,75 @@ function renderOrders(
 
 
         const created =
-            new Date(
-                order.created_at
-            ).toLocaleString();
+            new Date(order.created_at)
+                .toLocaleString();
 
 
         const isClosed =
-            order.status ===
-            "CLOSED";
+            order.status === "CLOSED";
 
 
-        const unread =
-            unreadCounts[
-                order.id
-            ] || 0;
+        const totalUnread =
+            order.unreadMessages +
+            order.unreadImages;
 
 
-        const unreadBadge =
-            unread > 0
-                ?
-                `
-                <span
-                    class="unread-badge"
-                >
-                    🔴 ${unread} NEW
-                </span>
-                `
-                :
-                "";
+        let notificationHTML = "";
+
+
+        if (totalUnread > 0) {
+
+            notificationHTML = `
+
+                <div class="notification">
+
+                    <span class="notification-dot">
+                        ●
+                    </span>
+
+                    <strong>
+                        ${totalUnread}
+                        NEW
+                    </strong>
+
+                    ${
+                        order.unreadMessages > 0
+                        ?
+                        `
+                        <span>
+                            💬 ${order.unreadMessages}
+                        </span>
+                        `
+                        :
+                        ""
+                    }
+
+                    ${
+                        order.unreadImages > 0
+                        ?
+                        `
+                        <span>
+                            📷 ${order.unreadImages}
+                        </span>
+                        `
+                        :
+                        ""
+                    }
+
+                </div>
+
+            `;
+        }
 
 
         card.innerHTML = `
 
             <div class="order-top">
 
-                <div
-                    class="order-number"
-                >
+                <div class="order-number">
                     ${escapeHtml(
                         order.order_number
                     )}
-
-                    ${unreadBadge}
-
                 </div>
 
                 <div class="status">
@@ -421,10 +352,14 @@ function renderOrders(
             </div>
 
 
+            ${notificationHTML}
+
+
             <div class="info">
 
                 <div>
                     Customer
+
                     <strong>
                         ${escapeHtml(
                             customerName
@@ -435,6 +370,7 @@ function renderOrders(
 
                 <div>
                     Server
+
                     <strong>
                         ${escapeHtml(
                             order.server
@@ -445,6 +381,7 @@ function renderOrders(
 
                 <div>
                     Gold
+
                     <strong>
                         ${
                             Number(
@@ -458,6 +395,7 @@ function renderOrders(
 
                 <div>
                     Created
+
                     <strong>
                         ${escapeHtml(
                             created
@@ -480,7 +418,9 @@ function renderOrders(
 
                 ${
                     isClosed
+
                     ?
+
                     `
                     <button
                         class="close"
@@ -489,7 +429,9 @@ function renderOrders(
                         REOPEN
                     </button>
                     `
+
                     :
+
                     `
                     <button
                         class="close"
@@ -513,466 +455,44 @@ function renderOrders(
         `;
 
 
-        ordersContainer.appendChild(
-            card
-        );
+        ordersContainer.appendChild(card);
     });
 }
 
 
-// =====================================================
+// ======================================
 // OPEN CHAT
-// =====================================================
+// ======================================
 
-async function openOrder(
-    orderId
-) {
-
-    await markOrderAsRead(
-        orderId
-    );
-
+function openOrder(orderId) {
 
     window.location.href =
         `admin-chat.html?order=${orderId}`;
 }
 
 
-// =====================================================
-// MARK ORDER READ
-// =====================================================
-
-async function markOrderAsRead(
-    orderId
-) {
-
-    if (!currentAdminId) {
-        return;
-    }
-
-
-    const {
-        error
-    } =
-        await supabaseClient
-            .from("admin_order_reads")
-            .upsert(
-                {
-                    admin_id:
-                        currentAdminId,
-
-                    order_id:
-                        Number(orderId),
-
-                    last_read_at:
-                        new Date()
-                            .toISOString()
-                },
-                {
-                    onConflict:
-                        "admin_id,order_id"
-                }
-            );
-
-
-    if (error) {
-
-        console.error(
-            "Unable to mark order read:",
-            error
-        );
-
-        return;
-    }
-
-
-    unreadCounts[
-        orderId
-    ] = 0;
-}
-
-
-// =====================================================
-// REALTIME
-// =====================================================
-
-function subscribeToRealtime() {
-
-    if (realtimeChannel) {
-
-        supabaseClient.removeChannel(
-            realtimeChannel
-        );
-
-        realtimeChannel =
-            null;
-    }
-
-
-    realtimeChannel =
-        supabaseClient
-            .channel(
-                "admin-dashboard-" +
-                Date.now()
-            );
-
-
-    // =================================================
-    // CUSTOMER TEXT MESSAGE
-    // =================================================
-
-    realtimeChannel.on(
-        "postgres_changes",
-        {
-            event: "INSERT",
-            schema: "public",
-            table: "order_messages",
-            filter:
-                "sender_type=eq.customer"
-        },
-        async payload => {
-
-            console.log(
-                "NEW CUSTOMER MESSAGE:",
-                payload.new
-            );
-
-
-            const orderId =
-                Number(
-                    payload.new.order_id
-                );
-
-
-            await incrementUnread(
-                orderId
-            );
-
-
-            await loadOrders();
-
-
-            notifyAdmin(
-                "New Customer Message",
-                "A customer sent a new message."
-            );
-        }
-    );
-
-
-    // =================================================
-    // CUSTOMER IMAGE
-    // =================================================
-
-    realtimeChannel.on(
-        "postgres_changes",
-        {
-            event: "INSERT",
-            schema: "public",
-            table: "order_screenshots",
-            filter:
-                "sender_type=eq.customer"
-        },
-        async payload => {
-
-            console.log(
-                "NEW CUSTOMER IMAGE:",
-                payload.new
-            );
-
-
-            const orderId =
-                Number(
-                    payload.new.order_id
-                );
-
-
-            await incrementUnread(
-                orderId
-            );
-
-
-            await loadOrders();
-
-
-            notifyAdmin(
-                "New Customer Image",
-                payload.new.original_name ||
-                "Customer sent an image."
-            );
-        }
-    );
-
-
-    realtimeChannel.subscribe(
-        status => {
-
-            console.log(
-                "Dashboard realtime:",
-                status
-            );
-
-
-            if (
-                status ===
-                "SUBSCRIBED"
-            ) {
-
-                console.log(
-                    "✓ DASHBOARD REALTIME CONNECTED"
-                );
-            }
-
-        }
-    );
-}
-
-
-// =====================================================
-// INCREMENT UNREAD
-// =====================================================
-
-async function incrementUnread(
-    orderId
-) {
-
-    unreadCounts[
-        orderId
-    ] =
-        (
-            unreadCounts[
-                orderId
-            ] || 0
-        ) + 1;
-}
-
-
-// =====================================================
-// ADMIN NOTIFICATION
-// =====================================================
-
-async function notifyAdmin(
-    title,
-    body
-) {
-
-    console.log(
-        title,
-        body
-    );
-
-
-    document.title =
-        "🔔 " +
-        title;
-
-
-    setTimeout(
-        () => {
-
-            document.title =
-                originalTitle;
-
-        },
-        5000
-    );
-
-
-    /*
-     * Browser notification.
-     */
-
-    if (
-        "Notification" in window &&
-        Notification.permission ===
-        "granted"
-    ) {
-
-        try {
-
-            new Notification(
-                title,
-                {
-                    body:
-                        body,
-
-                    icon:
-                        "/mir4-gold-orders/favicon.ico",
-
-                    tag:
-                        "mir4-admin"
-                }
-            );
-
-        } catch (error) {
-
-            console.error(
-                error
-            );
-        }
-    }
-
-
-    playNotificationSound();
-}
-
-
-// =====================================================
-// NOTIFICATION SOUND
-// =====================================================
-
-function playNotificationSound() {
-
-    try {
-
-        const AudioContext =
-            window.AudioContext ||
-            window.webkitAudioContext;
-
-
-        if (!AudioContext) {
-            return;
-        }
-
-
-        const audioContext =
-            new AudioContext();
-
-
-        const oscillator =
-            audioContext.createOscillator();
-
-
-        const gain =
-            audioContext.createGain();
-
-
-        oscillator.type =
-            "sine";
-
-
-        oscillator.frequency.value =
-            880;
-
-
-        gain.gain.setValueAtTime(
-            0.001,
-            audioContext.currentTime
-        );
-
-
-        gain.gain.exponentialRampToValueAtTime(
-            0.15,
-            audioContext.currentTime +
-            0.02
-        );
-
-
-        gain.gain.exponentialRampToValueAtTime(
-            0.001,
-            audioContext.currentTime +
-            0.25
-        );
-
-
-        oscillator.connect(
-            gain
-        );
-
-
-        gain.connect(
-            audioContext.destination
-        );
-
-
-        oscillator.start();
-
-
-        oscillator.stop(
-            audioContext.currentTime +
-            0.25
-        );
-
-
-    } catch (error) {
-
-        console.log(
-            "Notification sound unavailable."
-        );
-    }
-}
-
-
-// =====================================================
-// ENABLE NOTIFICATIONS
-// =====================================================
-
-async function enableNotifications() {
-
-    if (
-        !("Notification" in window)
-    ) {
-
-        return;
-    }
-
-
-    if (
-        Notification.permission ===
-        "default"
-    ) {
-
-        try {
-
-            await Notification.requestPermission();
-
-        } catch (error) {
-
-            console.error(
-                error
-            );
-        }
-    }
-}
-
-
-// =====================================================
+// ======================================
 // CLOSE ORDER
-// =====================================================
+// ======================================
 
-async function closeOrder(
-    orderId
-) {
+async function closeOrder(orderId) {
 
-    if (
-        !confirm(
-            "Close this order?"
-        )
-    ) {
-
+    if (!confirm(
+        "Close this order?"
+    )) {
         return;
     }
 
 
-    const {
-        error
-    } =
+    const { error } =
         await supabaseClient
             .from("orders")
             .update({
-
-                status:
-                    "CLOSED",
-
+                status: "CLOSED",
                 updated_at:
-                    new Date()
-                        .toISOString()
-
+                    new Date().toISOString()
             })
-            .eq(
-                "id",
-                orderId
-            );
+            .eq("id", orderId);
 
 
     if (error) {
@@ -981,11 +501,7 @@ async function closeOrder(
             "Unable to close order."
         );
 
-
-        console.error(
-            error
-        );
-
+        console.error(error);
 
         return;
     }
@@ -995,43 +511,28 @@ async function closeOrder(
 }
 
 
-// =====================================================
+// ======================================
 // REOPEN ORDER
-// =====================================================
+// ======================================
 
-async function reopenOrder(
-    orderId
-) {
+async function reopenOrder(orderId) {
 
-    if (
-        !confirm(
-            "Reopen this order?"
-        )
-    ) {
-
+    if (!confirm(
+        "Reopen this order?"
+    )) {
         return;
     }
 
 
-    const {
-        error
-    } =
+    const { error } =
         await supabaseClient
             .from("orders")
             .update({
-
-                status:
-                    "WAITING",
-
+                status: "WAITING",
                 updated_at:
-                    new Date()
-                        .toISOString()
-
+                    new Date().toISOString()
             })
-            .eq(
-                "id",
-                orderId
-            );
+            .eq("id", orderId);
 
 
     if (error) {
@@ -1040,11 +541,7 @@ async function reopenOrder(
             "Unable to reopen order."
         );
 
-
-        console.error(
-            error
-        );
-
+        console.error(error);
 
         return;
     }
@@ -1054,13 +551,11 @@ async function reopenOrder(
 }
 
 
-// =====================================================
+// ======================================
 // DELETE ORDER
-// =====================================================
+// ======================================
 
-async function deleteOrder(
-    orderId
-) {
+async function deleteOrder(orderId) {
 
     const confirmed =
         confirm(
@@ -1102,12 +597,10 @@ async function deleteOrder(
                 error
             );
 
-
             alert(
                 "Unable to delete order.\n\n" +
                 error.message
             );
-
 
             return;
         }
@@ -1119,20 +612,13 @@ async function deleteOrder(
         );
 
 
-        delete unreadCounts[
-            orderId
-        ];
-
-
         await loadOrders();
 
+    }
 
-    } catch (err) {
+    catch (err) {
 
-        console.error(
-            err
-        );
-
+        console.error(err);
 
         alert(
             "An unexpected error occurred while deleting the order."
@@ -1141,27 +627,17 @@ async function deleteOrder(
 }
 
 
-// =====================================================
+// ======================================
 // LOGOUT
-// =====================================================
+// ======================================
 
 logoutButton.addEventListener(
     "click",
     async function() {
 
-        if (realtimeChannel) {
-
-            await supabaseClient
-                .removeChannel(
-                    realtimeChannel
-                );
-        }
-
-
         await supabaseClient
             .auth
             .signOut();
-
 
         window.location.href =
             "admin.html";
@@ -1170,9 +646,9 @@ logoutButton.addEventListener(
 );
 
 
-// =====================================================
+// ======================================
 // REFRESH
-// =====================================================
+// ======================================
 
 refreshButton.addEventListener(
     "click",
@@ -1180,31 +656,159 @@ refreshButton.addEventListener(
 );
 
 
-// =====================================================
-// ESCAPE HTML
-// =====================================================
+// ======================================
+// REALTIME — NEW MESSAGES
+// ======================================
 
-function escapeHtml(
-    text
-) {
+const messageChannel =
+    supabaseClient
+        .channel(
+            "admin-dashboard-messages"
+        )
+        .on(
+            "postgres_changes",
+            {
+                event: "INSERT",
+                schema: "public",
+                table: "order_messages"
+            },
+            function(payload) {
 
-    const div =
-        document.createElement(
-            "div"
+                console.log(
+                    "New message:",
+                    payload.new
+                );
+
+                loadOrders();
+
+                playNotificationSound();
+            }
+        )
+        .subscribe();
+
+
+// ======================================
+// REALTIME — NEW SCREENSHOTS
+// ======================================
+
+const screenshotChannel =
+    supabaseClient
+        .channel(
+            "admin-dashboard-screenshots"
+        )
+        .on(
+            "postgres_changes",
+            {
+                event: "INSERT",
+                schema: "public",
+                table: "order_screenshots"
+            },
+            function(payload) {
+
+                console.log(
+                    "New screenshot:",
+                    payload.new
+                );
+
+                loadOrders();
+
+                playNotificationSound();
+            }
+        )
+        .subscribe();
+
+
+// ======================================
+// NOTIFICATION SOUND
+// ======================================
+
+function playNotificationSound() {
+
+    try {
+
+        const audioContext =
+            new (
+                window.AudioContext ||
+                window.webkitAudioContext
+            )();
+
+
+        const oscillator =
+            audioContext.createOscillator();
+
+
+        const gain =
+            audioContext.createGain();
+
+
+        oscillator.frequency.value =
+            880;
+
+        oscillator.type =
+            "sine";
+
+
+        gain.gain.setValueAtTime(
+            0.001,
+            audioContext.currentTime
         );
 
 
+        gain.gain.exponentialRampToValueAtTime(
+            0.15,
+            audioContext.currentTime + 0.01
+        );
+
+
+        gain.gain.exponentialRampToValueAtTime(
+            0.001,
+            audioContext.currentTime + 0.25
+        );
+
+
+        oscillator.connect(gain);
+
+        gain.connect(
+            audioContext.destination
+        );
+
+
+        oscillator.start();
+
+        oscillator.stop(
+            audioContext.currentTime + 0.25
+        );
+
+    }
+
+    catch (error) {
+
+        console.log(
+            "Notification sound unavailable."
+        );
+    }
+}
+
+
+// ======================================
+// ESCAPE HTML
+// ======================================
+
+function escapeHtml(text) {
+
+    const div =
+        document.createElement("div");
+
     div.textContent =
         text ?? "";
-
 
     return div.innerHTML;
 }
 
 
-// =====================================================
+// ======================================
 // START
-// =====================================================
+// ======================================
 
 async function start() {
 
@@ -1217,14 +821,7 @@ async function start() {
     }
 
 
-    await enableNotifications();
-
-
     await loadOrders();
-
-
-    subscribeToRealtime();
-
 }
 
 
