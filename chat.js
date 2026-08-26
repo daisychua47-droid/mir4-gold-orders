@@ -167,9 +167,12 @@ async function loadOrder() {
     // =================================================
     // TEXT MESSAGES
     // =================================================
-
+    
     renderMessages(
-        data.messages || []
+        (data.messages || []).map(message => ({
+            ...message,
+            is_image: false
+        }))
     );
 
 
@@ -212,11 +215,7 @@ function renderMessages(messages) {
 
     messagesBox.innerHTML = "";
 
-
-    if (
-        !messages ||
-        messages.length === 0
-    ) {
+    if (!messages || messages.length === 0) {
 
         messagesBox.innerHTML = `
             <div class="empty">
@@ -227,14 +226,21 @@ function renderMessages(messages) {
         return;
     }
 
+    messages
+        .sort((a, b) =>
+            new Date(a.created_at) -
+            new Date(b.created_at)
+        )
+        .forEach(item => {
 
-    messages.forEach(message => {
+            if (item.is_image) {
+                addImageToChat(item);
+            } else {
+                addMessageToChat(item);
+            }
 
-        addMessageToChat(message);
-
-    });
+        });
 }
-
 
 // =====================================================
 // ADD TEXT MESSAGE
@@ -321,32 +327,35 @@ function addImageToChat(image) {
         return;
     }
 
-
-    // ---------------------------------------------
-    // PREVENT DUPLICATE
-    // ---------------------------------------------
-
+    // Prevent duplicate
     if (
         document.querySelector(
             `[data-image-id="${image.id}"]`
         )
     ) {
-
         return;
     }
-
 
     const messageDiv =
         document.createElement("div");
 
+    // =========================================
+    // CORRECT SENDER POSITION
+    // =========================================
+
+    const senderType =
+        String(image.sender_type || "customer")
+            .toLowerCase();
 
     messageDiv.className =
-        "message customer";
-
+        `message ${senderType}`;
 
     messageDiv.dataset.imageId =
         image.id;
 
+    // =========================================
+    // SENDER NAME
+    // =========================================
 
     const sender =
         document.createElement("div");
@@ -355,12 +364,13 @@ function addImageToChat(image) {
         "sender";
 
     sender.textContent =
-        "YOU";
+        senderType === "admin"
+            ? "ADMIN"
+            : "YOU";
 
-
-    // ---------------------------------------------
+    // =========================================
     // BUBBLE
-    // ---------------------------------------------
+    // =========================================
 
     const bubble =
         document.createElement("div");
@@ -368,65 +378,41 @@ function addImageToChat(image) {
     bubble.className =
         "bubble image-bubble";
 
-
-    // ---------------------------------------------
+    // =========================================
     // IMAGE
-    // ---------------------------------------------
+    // =========================================
 
     const img =
         document.createElement("img");
 
-
     const imageUrl =
-        getImageUrl(
-            image.file_path
-        );
-
+        getImageUrl(image.file_path);
 
     img.className =
         "chat-image";
 
-
     img.src =
         imageUrl;
 
-
     img.alt =
-        image.original_name ||
-        "Screenshot";
-
+        image.original_name || "Screenshot";
 
     img.loading =
         "lazy";
 
-
-    img.style.display =
-        "block";
-
-    img.style.maxWidth =
-        "100%";
-
-    img.style.width =
-        "auto";
-
-    img.style.height =
-        "auto";
-
-    img.style.maxHeight =
-        "400px";
-
-    img.style.borderRadius =
-        "8px";
-
-    img.style.cursor =
-        "pointer";
-
+    // Important sizing
+    img.style.display = "block";
+    img.style.maxWidth = "100%";
+    img.style.width = "auto";
+    img.style.height = "auto";
+    img.style.maxHeight = "400px";
+    img.style.borderRadius = "8px";
+    img.style.cursor = "pointer";
 
     // Open full image
-
     img.addEventListener(
         "click",
-        function() {
+        function () {
 
             window.open(
                 imageUrl,
@@ -436,23 +422,20 @@ function addImageToChat(image) {
         }
     );
 
-
-    // ---------------------------------------------
+    // =========================================
     // IMAGE ERROR
-    // ---------------------------------------------
+    // =========================================
 
     img.addEventListener(
         "error",
-        function() {
+        function () {
 
             console.error(
                 "IMAGE FAILED TO LOAD:",
                 imageUrl
             );
 
-
             bubble.innerHTML = "";
-
 
             const errorText =
                 document.createElement("div");
@@ -465,7 +448,6 @@ function addImageToChat(image) {
 
             errorText.textContent =
                 "Unable to display image.";
-
 
             const link =
                 document.createElement("a");
@@ -482,7 +464,6 @@ function addImageToChat(image) {
             link.textContent =
                 "Open image";
 
-
             link.style.display =
                 "block";
 
@@ -492,7 +473,6 @@ function addImageToChat(image) {
             link.style.color =
                 "#93c5fd";
 
-
             bubble.appendChild(
                 errorText
             );
@@ -500,19 +480,14 @@ function addImageToChat(image) {
             bubble.appendChild(
                 link
             );
-
         }
     );
 
+    bubble.appendChild(img);
 
-    bubble.appendChild(
-        img
-    );
-
-
-    // ---------------------------------------------
+    // =========================================
     // TIME
-    // ---------------------------------------------
+    // =========================================
 
     const time =
         document.createElement("div");
@@ -520,58 +495,45 @@ function addImageToChat(image) {
     time.className =
         "time";
 
-
     time.textContent =
         new Date(
             image.created_at
         ).toLocaleString();
 
-
-    // ---------------------------------------------
+    // =========================================
     // BUILD
-    // ---------------------------------------------
+    // =========================================
 
-    messageDiv.appendChild(
-        sender
-    );
+    messageDiv.appendChild(sender);
+    messageDiv.appendChild(bubble);
+    messageDiv.appendChild(time);
 
-    messageDiv.appendChild(
-        bubble
-    );
-
-    messageDiv.appendChild(
-        time
-    );
-
-
-    messagesBox.appendChild(
-        messageDiv
-    );
+    messagesBox.appendChild(messageDiv);
 }
 
 
 // =====================================================
 // LOAD SAVED IMAGES
 // =====================================================
-
 async function loadImages() {
 
     if (!currentOrder) {
         return;
     }
 
-
     console.log(
         "Loading saved images for order:",
         orderId
     );
 
-
-    const { data, error } =
+    const {
+        data,
+        error
+    } =
         await supabaseClient
             .from("order_screenshots")
             .select(
-                "id, order_id, file_path, original_name, created_at"
+                "id, order_id, file_path, original_name, created_at, sender_type"
             )
             .eq(
                 "order_id",
@@ -584,7 +546,6 @@ async function loadImages() {
                 }
             );
 
-
     if (error) {
 
         console.error(
@@ -595,42 +556,121 @@ async function loadImages() {
         return;
     }
 
-
     console.log(
         "Saved images:",
         data
     );
 
+    if (!data) {
+        return;
+    }
 
-    if (!data || data.length === 0) {
+    /*
+     * IMPORTANT:
+     * We don't append images separately anymore.
+     *
+     * Convert them to chat items so they can be
+     * positioned together with text messages.
+     */
+
+    const imageItems =
+        data.map(image => ({
+            ...image,
+            is_image: true
+        }));
+
+
+    /*
+     * Get existing text messages from the DOM
+     * is not reliable, so reload the order RPC.
+     */
+
+    const {
+        data: orderData,
+        error: orderError
+    } =
+        await supabaseClient.rpc(
+            "get_customer_order",
+            {
+                p_order_id:
+                    Number(orderId),
+
+                p_access_token:
+                    accessToken
+            }
+        );
+
+    if (orderError) {
+
+        console.error(
+            "Unable to reload messages:",
+            orderError
+        );
 
         return;
     }
 
 
-    // Remove empty message
+    const textItems =
+        (orderData?.messages || [])
+            .map(message => ({
+                ...message,
+                is_image: false
+            }));
 
-    const empty =
-        messagesBox.querySelector(
-            ".empty"
-        );
 
-    if (empty) {
-        empty.remove();
+    /*
+     * Combine EVERYTHING
+     */
+
+    const allItems =
+        [
+            ...textItems,
+            ...imageItems
+        ];
+
+
+    /*
+     * Sort by actual creation time
+     */
+
+    allItems.sort(
+        (a, b) =>
+            new Date(a.created_at) -
+            new Date(b.created_at)
+    );
+
+
+    /*
+     * Render everything in correct order
+     */
+
+    messagesBox.innerHTML = "";
+
+
+    if (allItems.length === 0) {
+
+        messagesBox.innerHTML = `
+            <div class="empty">
+                No messages yet.
+            </div>
+        `;
+
+        return;
     }
 
 
-    data.forEach(image => {
+    allItems.forEach(item => {
 
-        console.log(
-            "Rendering saved image:",
-            image
-        );
+        if (item.is_image) {
 
+            addImageToChat(item);
 
-        addImageToChat(
-            image
-        );
+        } else {
+
+            addMessageToChat(item);
+
+        }
 
     });
 
@@ -740,9 +780,10 @@ function subscribeToRealtime() {
                     }
 
 
-                    addImageToChat(
-                        payload.new
-                    );
+                    addImageToChat({
+                        ...payload.new,
+                        is_image: true
+                    });
 
 
                     scrollToBottom();
