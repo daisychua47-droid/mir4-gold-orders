@@ -930,7 +930,11 @@ async function sendMessage() {
         messageInput.value.trim();
 
 
-    if (!message) {
+    if (
+        !message &&
+        !selectedImage
+    ) {
+
         return;
     }
 
@@ -938,6 +942,8 @@ async function sendMessage() {
     sendButton.disabled =
         true;
 
+    attachButton.disabled =
+        true;
 
     sendButton.textContent =
         "SENDING...";
@@ -945,45 +951,83 @@ async function sendMessage() {
 
     try {
 
-        const {
-            error
-        } =
-            await supabaseClient
-                .from("order_messages")
-                .insert({
+        // ------------------------------------------
+        // SEND TEXT
+        // ------------------------------------------
 
-                    order_id:
-                        orderId,
+        if (message) {
 
-                    sender_type:
-                        "admin",
+            const {
+                error
+            } =
+                await supabaseClient
+                    .from("order_messages")
+                    .insert({
 
-                    message:
-                        message,
+                        order_id:
+                            orderId,
 
-                    attachment_path:
-                        null
-                });
+                        sender_type:
+                            "admin",
+
+                        message:
+                            message,
+
+                        attachment_path:
+                            null
+                    });
 
 
-        if (error) {
-            throw error;
+            if (error) {
+                throw error;
+            }
         }
 
 
-        messageInput.value = "";
+        // ------------------------------------------
+        // SEND IMAGE
+        // ------------------------------------------
+
+        if (selectedImage) {
+
+            await uploadAdminImage();
+        }
+
+
+        // ------------------------------------------
+        // CLEAR
+        // ------------------------------------------
+
+        messageInput.value =
+            "";
+
+
+        selectedImage =
+            null;
+
+
+        imageInput.value =
+            "";
+
+
+        previewImage.src =
+            "";
+
+
+        imagePreview.style.display =
+            "none";
 
 
     } catch (error) {
 
         console.error(
-            "Send message error:",
+            "Send error:",
             error
         );
 
 
         alert(
-            "Unable to send message:\n\n" +
+            "Unable to send:\n\n" +
             error.message
         );
 
@@ -993,12 +1037,13 @@ async function sendMessage() {
         sendButton.disabled =
             false;
 
+        attachButton.disabled =
+            false;
+
         sendButton.textContent =
             "SEND";
     }
 }
-
-
 // ======================================================
 // REALTIME
 // ======================================================
@@ -1558,8 +1603,245 @@ messageInput.addEventListener(
         }
     }
 );
+// ======================================================
+// ADD IMAGE SELECTION
+// ======================================================
+
+attachButton.addEventListener(
+    "click",
+    function () {
+
+        imageInput.click();
+
+    }
+);
 
 
+imageInput.addEventListener(
+    "change",
+    function () {
+
+        const file =
+            imageInput.files[0];
+
+
+        if (!file) {
+            return;
+        }
+
+
+        if (
+            ![
+                "image/jpeg",
+                "image/png",
+                "image/webp"
+            ].includes(file.type)
+        ) {
+
+            alert(
+                "Please select a JPG, PNG, or WEBP image."
+            );
+
+            imageInput.value = "";
+
+            return;
+        }
+
+
+        if (
+            file.size >
+            10 * 1024 * 1024
+        ) {
+
+            alert(
+                "Image must be 10 MB or smaller."
+            );
+
+            imageInput.value = "";
+
+            return;
+        }
+
+
+        selectedImage =
+            file;
+
+
+        previewImage.src =
+            URL.createObjectURL(
+                file
+            );
+
+
+        previewName.textContent =
+            file.name;
+
+
+        previewSize.textContent =
+            formatFileSize(
+                file.size
+            );
+
+
+        imagePreview.style.display =
+            "flex";
+    }
+);
+
+// ======================================================
+// Remove selected image
+// ======================================================
+removeImage.addEventListener(
+    "click",
+    function () {
+
+        selectedImage =
+            null;
+
+        imageInput.value =
+            "";
+
+        previewImage.src =
+            "";
+
+        imagePreview.style.display =
+            "none";
+    }
+);
+
+// ======================================================
+// file size function
+// ======================================================
+function formatFileSize(
+    bytes
+) {
+
+    if (
+        bytes < 1024
+    ) {
+
+        return bytes +
+            " B";
+    }
+
+
+    if (
+        bytes < 1024 * 1024
+    ) {
+
+        return (
+            bytes / 1024
+        ).toFixed(1) +
+        " KB";
+    }
+
+
+    return (
+        bytes /
+        (1024 * 1024)
+    ).toFixed(1) +
+    " MB";
+}
+
+// ======================================================
+// UPLOAD FUNCTION
+// ======================================================
+
+async function uploadAdminImage() {
+
+    if (!selectedImage) {
+        return null;
+    }
+
+
+    const extension =
+        selectedImage.name
+            .split(".")
+            .pop()
+            .toLowerCase();
+
+
+    const randomName =
+        crypto.randomUUID() +
+        "." +
+        extension;
+
+
+    const filePath =
+        `chat/${orderId}/${randomName}`;
+
+
+    console.log(
+        "Uploading admin image:",
+        filePath
+    );
+
+
+    const {
+        error
+    } =
+        await supabaseClient
+            .storage
+            .from("order-screenshots")
+            .upload(
+                filePath,
+                selectedImage,
+                {
+                    cacheControl:
+                        "3600",
+
+                    contentType:
+                        selectedImage.type,
+
+                    upsert:
+                        false
+                }
+            );
+
+
+    if (error) {
+        throw error;
+    }
+
+
+    // Save database record
+
+    const {
+        data,
+        error:
+            databaseError
+    } =
+        await supabaseClient
+            .from("order_screenshots")
+            .insert({
+
+                order_id:
+                    orderId,
+
+                file_path:
+                    filePath,
+
+                original_name:
+                    selectedImage.name
+
+            })
+            .select()
+            .single();
+
+
+    if (databaseError) {
+        throw databaseError;
+    }
+
+
+    console.log(
+        "Admin image saved:",
+        data
+    );
+
+
+    return data;
+}
 // ======================================================
 // START
 // ======================================================
