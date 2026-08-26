@@ -112,43 +112,62 @@
         }
 
 
-        .message {
+       .message {
     display: flex;
     flex-direction: column;
     max-width: 80%;
+    margin-bottom: 16px;
 }
 
+/* CUSTOMER / YOU = RIGHT */
+.message.customer {
+    margin-left: auto !important;
+    margin-right: 0 !important;
+    align-items: flex-end !important;
+    text-align: right !important;
+}
+
+/* ADMIN = LEFT */
+.message.admin {
+    margin-left: 0 !important;
+    margin-right: auto !important;
+    align-items: flex-start !important;
+    text-align: left !important;
+}
+
+/* Bubble */
 .message .bubble {
+    display: inline-block;
+    width: fit-content;
+    max-width: 100%;
     text-align: left;
 }
 
-.image-bubble {
-    padding: 6px !important;
+/* CUSTOMER IMAGE = RIGHT */
+.message.customer .image-bubble {
+    margin-left: auto !important;
+    margin-right: 0 !important;
 }
 
+/* ADMIN IMAGE = LEFT */
+.message.admin .image-bubble {
+    margin-left: 0 !important;
+    margin-right: auto !important;
+}
+
+/* Image */
 .chat-image {
     display: block;
+    width: auto;
     max-width: 420px;
     max-height: 500px;
-    width: auto;
     height: auto;
     border-radius: 8px;
     object-fit: contain;
 }
 
-/* CUSTOMER IMAGE = LEFT */
-.message.customer .image-bubble {
-    margin-left: 0 !important;
-    margin-right: auto !important;
-}
-
-/* ADMIN IMAGE = RIGHT */
-.message.admin .image-bubble {
-    margin-left: auto !important;
-    margin-right: 0 !important;
-}
-
 @media (max-width: 600px) {
+
     .message {
         max-width: 90%;
     }
