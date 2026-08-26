@@ -98,13 +98,81 @@
         }
 
         .message.customer {
-            margin-left: auto;
-            text-align: right;
+            margin-left: 0 !important;
+            margin-right: auto !important;
+            text-align: left !important;
+            align-items: flex-start !important;
+        }
+        
+        .message.admin {
+            margin-left: auto !important;
+            margin-right: 0 !important;
+            text-align: right !important;
+            align-items: flex-end !important;
         }
 
-        .message.admin {
-            margin-right: auto;
-        }
+
+        .message {
+    display: flex;
+    flex-direction: column;
+    max-width: 80%;
+}
+
+.message .bubble {
+    text-align: left;
+}
+
+.image-bubble {
+    padding: 6px !important;
+}
+
+.chat-image {
+    display: block;
+    max-width: 420px;
+    max-height: 500px;
+    width: auto;
+    height: auto;
+    border-radius: 8px;
+    object-fit: contain;
+}
+
+/* CUSTOMER IMAGE = LEFT */
+.message.customer .image-bubble {
+    margin-left: 0 !important;
+    margin-right: auto !important;
+}
+
+/* ADMIN IMAGE = RIGHT */
+.message.admin .image-bubble {
+    margin-left: auto !important;
+    margin-right: 0 !important;
+}
+
+@media (max-width: 600px) {
+    .message {
+        max-width: 90%;
+    }
+
+    .chat-image {
+        max-width: 280px;
+        max-height: 400px;
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
 
         .sender {
             font-size: 12px;
