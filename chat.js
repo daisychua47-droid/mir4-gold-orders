@@ -9,9 +9,9 @@ const supabaseClient = window.supabase.createClient(
 );
 
 
-// ===============================
-// GET ORDER ID + ACCESS TOKEN
-// ===============================
+// =====================================================
+// URL PARAMETERS
+// =====================================================
 
 const params = new URLSearchParams(window.location.search);
 
@@ -19,42 +19,24 @@ const orderId = params.get("order");
 const accessToken = params.get("token");
 
 
-// ===============================
+// =====================================================
 // ELEMENTS
-// ===============================
+// =====================================================
 
-const loading =
-    document.getElementById("loading");
+const loading = document.getElementById("loading");
+const errorBox = document.getElementById("error");
+const orderContent = document.getElementById("orderContent");
 
-const errorBox =
-    document.getElementById("error");
+const orderNumber = document.getElementById("orderNumber");
+const server = document.getElementById("server");
+const gold = document.getElementById("gold");
+const status = document.getElementById("status");
 
-const orderContent =
-    document.getElementById("orderContent");
+const messagesBox = document.getElementById("messages");
 
-const orderNumber =
-    document.getElementById("orderNumber");
-
-const server =
-    document.getElementById("server");
-
-const gold =
-    document.getElementById("gold");
-
-const status =
-    document.getElementById("status");
-
-const messagesBox =
-    document.getElementById("messages");
-
-const composer =
-    document.getElementById("composer");
-
-const messageInput =
-    document.getElementById("messageInput");
-
-const sendButton =
-    document.getElementById("sendButton");
+const composer = document.getElementById("composer");
+const messageInput = document.getElementById("messageInput");
+const sendButton = document.getElementById("sendButton");
 
 const closedMessage =
     document.getElementById("closedMessage");
@@ -92,9 +74,9 @@ let selectedImage = null;
 let realtimeChannel = null;
 
 
-// ===============================
-// SHOW ERROR
-// ===============================
+// =====================================================
+// ERROR
+// =====================================================
 
 function showError(message) {
 
@@ -112,19 +94,17 @@ function showError(message) {
 }
 
 
-// ===============================
+// =====================================================
 // LOAD ORDER
-// ===============================
+// =====================================================
 
 async function loadOrder() {
 
     if (!orderId || !accessToken) {
 
-        showError(
-            "Invalid order link."
-        );
+        showError("Invalid order link.");
 
-        return;
+        return false;
     }
 
 
@@ -140,50 +120,62 @@ async function loadOrder() {
 
     if (error) {
 
-        console.error(error);
+        console.error(
+            "get_customer_order error:",
+            error
+        );
 
         showError(
             "Order not found or this order link is invalid."
         );
 
-        return;
+        return false;
+    }
+
+
+    if (!data || !data.order) {
+
+        showError("Order not found.");
+
+        return false;
     }
 
 
     currentOrder = data.order;
 
 
-    // ===============================
-    // ORDER INFORMATION
-    // ===============================
+    // =================================================
+    // ORDER INFO
+    // =================================================
 
     orderNumber.textContent =
-        currentOrder.order_number;
+        currentOrder.order_number || "ORDER";
 
     server.textContent =
-        currentOrder.server;
+        currentOrder.server || "";
 
     gold.textContent =
         Number(
-            currentOrder.requested_gold
+            currentOrder.requested_gold || 0
         ).toLocaleString() + " G";
 
     status.textContent =
-        currentOrder.status;
+        currentOrder.status || "";
 
 
-    // ===============================
-    // MESSAGES
-    // ===============================
+
+    // =================================================
+    // TEXT MESSAGES
+    // =================================================
 
     renderMessages(
         data.messages || []
     );
 
 
-    // ===============================
-    // CLOSED ORDER
-    // ===============================
+    // =================================================
+    // CLOSED
+    // =================================================
 
     if (
         currentOrder.status === "CLOSED"
@@ -208,17 +200,13 @@ async function loadOrder() {
     orderContent.style.display = "block";
 
 
-    // ===============================
-    // START REALTIME
-    // ===============================
-
-    subscribeToRealtime();
+    return true;
 }
 
 
-// ===============================
-// RENDER MESSAGES
-// ===============================
+// =====================================================
+// RENDER TEXT MESSAGES
+// =====================================================
 
 function renderMessages(messages) {
 
@@ -245,15 +233,12 @@ function renderMessages(messages) {
         addMessageToChat(message);
 
     });
-
-
-    scrollToBottom();
 }
 
 
-// ===============================
-// ADD MESSAGE
-// ===============================
+// =====================================================
+// ADD TEXT MESSAGE
+// =====================================================
 
 function addMessageToChat(message) {
 
@@ -275,10 +260,6 @@ function addMessageToChat(message) {
         new Date(message.created_at);
 
 
-    const time =
-        date.toLocaleString();
-
-
     messageDiv.innerHTML = `
 
         <div class="sender">
@@ -290,7 +271,7 @@ function addMessageToChat(message) {
         </div>
 
         <div class="time">
-            ${time}
+            ${date.toLocaleString()}
         </div>
 
     `;
@@ -302,72 +283,265 @@ function addMessageToChat(message) {
 }
 
 
-// ===============================
+// =====================================================
+// GET PUBLIC IMAGE URL
+// =====================================================
+
+function getImageUrl(filePath) {
+
+    if (!filePath) {
+        return "";
+    }
+
+
+    const cleanPath =
+        String(filePath)
+            .split("/")
+            .map(part =>
+                encodeURIComponent(part)
+            )
+            .join("/");
+
+
+    return (
+        SUPABASE_URL +
+        "/storage/v1/object/public/order-screenshots/" +
+        cleanPath
+    );
+}
+
+
+// =====================================================
 // ADD IMAGE TO CHAT
-// ===============================
+// =====================================================
 
 function addImageToChat(image) {
+
+    if (!image || !image.id) {
+        return;
+    }
+
+
+    // ---------------------------------------------
+    // PREVENT DUPLICATE
+    // ---------------------------------------------
+
+    if (
+        document.querySelector(
+            `[data-image-id="${image.id}"]`
+        )
+    ) {
+
+        return;
+    }
+
 
     const messageDiv =
         document.createElement("div");
 
 
+    messageDiv.className =
+        "message customer";
+
+
+    messageDiv.dataset.imageId =
+        image.id;
+
+
     const sender =
-        image.sender_type === "admin"
-            ? "admin"
-            : "customer";
+        document.createElement("div");
+
+    sender.className =
+        "sender";
+
+    sender.textContent =
+        "YOU";
 
 
-    const senderText =
-        image.sender_type === "admin"
-            ? "ADMIN"
-            : "YOU";
+    // ---------------------------------------------
+    // BUBBLE
+    // ---------------------------------------------
+
+    const bubble =
+        document.createElement("div");
+
+    bubble.className =
+        "bubble image-bubble";
 
 
-    const date =
-        new Date(image.created_at);
+    // ---------------------------------------------
+    // IMAGE
+    // ---------------------------------------------
 
-
-    const time =
-        date.toLocaleString();
+    const img =
+        document.createElement("img");
 
 
     const imageUrl =
-        supabaseClient.storage
-            .from("order-screenshots")
-            .getPublicUrl(image.file_path)
-            .data.publicUrl;
+        getImageUrl(
+            image.file_path
+        );
 
 
-    messageDiv.className =
-        `message ${sender}`;
+    img.className =
+        "chat-image";
 
 
-    messageDiv.innerHTML = `
+    img.src =
+        imageUrl;
 
-        <div class="sender">
-            ${senderText}
-        </div>
 
-        <div class="bubble">
+    img.alt =
+        image.original_name ||
+        "Screenshot";
 
-            <img
-                src="${escapeHtml(imageUrl)}"
-                class="chat-image"
-                alt="${escapeHtml(
-                    image.original_name || "Image"
-                )}"
-                loading="lazy"
-                onclick="window.open(this.src, '_blank')"
-            >
 
-        </div>
+    img.loading =
+        "lazy";
 
-        <div class="time">
-            ${time}
-        </div>
 
-    `;
+    img.style.display =
+        "block";
+
+    img.style.maxWidth =
+        "100%";
+
+    img.style.width =
+        "auto";
+
+    img.style.height =
+        "auto";
+
+    img.style.maxHeight =
+        "400px";
+
+    img.style.borderRadius =
+        "8px";
+
+    img.style.cursor =
+        "pointer";
+
+
+    // Open full image
+
+    img.addEventListener(
+        "click",
+        function() {
+
+            window.open(
+                imageUrl,
+                "_blank"
+            );
+
+        }
+    );
+
+
+    // ---------------------------------------------
+    // IMAGE ERROR
+    // ---------------------------------------------
+
+    img.addEventListener(
+        "error",
+        function() {
+
+            console.error(
+                "IMAGE FAILED TO LOAD:",
+                imageUrl
+            );
+
+
+            bubble.innerHTML = "";
+
+
+            const errorText =
+                document.createElement("div");
+
+            errorText.style.color =
+                "#fca5a5";
+
+            errorText.style.fontSize =
+                "13px";
+
+            errorText.textContent =
+                "Unable to display image.";
+
+
+            const link =
+                document.createElement("a");
+
+            link.href =
+                imageUrl;
+
+            link.target =
+                "_blank";
+
+            link.rel =
+                "noopener noreferrer";
+
+            link.textContent =
+                "Open image";
+
+
+            link.style.display =
+                "block";
+
+            link.style.marginTop =
+                "8px";
+
+            link.style.color =
+                "#93c5fd";
+
+
+            bubble.appendChild(
+                errorText
+            );
+
+            bubble.appendChild(
+                link
+            );
+
+        }
+    );
+
+
+    bubble.appendChild(
+        img
+    );
+
+
+    // ---------------------------------------------
+    // TIME
+    // ---------------------------------------------
+
+    const time =
+        document.createElement("div");
+
+    time.className =
+        "time";
+
+
+    time.textContent =
+        new Date(
+            image.created_at
+        ).toLocaleString();
+
+
+    // ---------------------------------------------
+    // BUILD
+    // ---------------------------------------------
+
+    messageDiv.appendChild(
+        sender
+    );
+
+    messageDiv.appendChild(
+        bubble
+    );
+
+    messageDiv.appendChild(
+        time
+    );
 
 
     messagesBox.appendChild(
@@ -376,15 +550,21 @@ function addImageToChat(image) {
 }
 
 
-// ===============================
-// LOAD EXISTING IMAGES
-// ===============================
+// =====================================================
+// LOAD SAVED IMAGES
+// =====================================================
 
 async function loadImages() {
 
     if (!currentOrder) {
         return;
     }
+
+
+    console.log(
+        "Loading saved images for order:",
+        orderId
+    );
 
 
     const { data, error } =
@@ -416,35 +596,41 @@ async function loadImages() {
     }
 
 
-    if (!data) {
+    console.log(
+        "Saved images:",
+        data
+    );
+
+
+    if (!data || data.length === 0) {
+
         return;
+    }
+
+
+    // Remove empty message
+
+    const empty =
+        messagesBox.querySelector(
+            ".empty"
+        );
+
+    if (empty) {
+        empty.remove();
     }
 
 
     data.forEach(image => {
 
-        // Don't add duplicates
-        if (
-            document.querySelector(
-                `[data-image-id="${image.id}"]`
-            )
-        ) {
-            return;
-        }
+        console.log(
+            "Rendering saved image:",
+            image
+        );
 
 
-        addImageToChat(image);
-
-
-        const last =
-            messagesBox.lastElementChild;
-
-        if (last) {
-
-            last.dataset.imageId =
-                image.id;
-
-        }
+        addImageToChat(
+            image
+        );
 
     });
 
@@ -453,9 +639,9 @@ async function loadImages() {
 }
 
 
-// ===============================
+// =====================================================
 // REALTIME
-// ===============================
+// =====================================================
 
 function subscribeToRealtime() {
 
@@ -480,9 +666,10 @@ function subscribeToRealtime() {
                 `customer-order-${orderId}`
             )
 
-            // =========================
-            // NEW TEXT MESSAGE
-            // =========================
+
+            // =========================================
+            // TEXT MESSAGE
+            // =========================================
 
             .on(
                 "postgres_changes",
@@ -496,12 +683,11 @@ function subscribeToRealtime() {
                 payload => {
 
                     console.log(
-                        "New message:",
+                        "Realtime message:",
                         payload.new
                     );
 
 
-                    // Remove "No messages yet"
                     const empty =
                         messagesBox.querySelector(
                             ".empty"
@@ -518,12 +704,14 @@ function subscribeToRealtime() {
 
 
                     scrollToBottom();
+
                 }
             )
 
-            // =========================
-            // NEW IMAGE
-            // =========================
+
+            // =========================================
+            // IMAGE
+            // =========================================
 
             .on(
                 "postgres_changes",
@@ -537,7 +725,7 @@ function subscribeToRealtime() {
                 payload => {
 
                     console.log(
-                        "New image:",
+                        "Realtime image:",
                         payload.new
                     );
 
@@ -557,35 +745,28 @@ function subscribeToRealtime() {
                     );
 
 
-                    const last =
-                        messagesBox.lastElementChild;
-
-                    if (last) {
-
-                        last.dataset.imageId =
-                            payload.new.id;
-
-                    }
-
-
                     scrollToBottom();
+
                 }
             )
 
-            .subscribe(status => {
 
-                console.log(
-                    "Realtime status:",
-                    status
-                );
+            .subscribe(
+                subscriptionStatus => {
 
-            });
+                    console.log(
+                        "Realtime status:",
+                        subscriptionStatus
+                    );
+
+                }
+            );
 }
 
 
-// ===============================
+// =====================================================
 // SCROLL
-// ===============================
+// =====================================================
 
 function scrollToBottom() {
 
@@ -594,9 +775,9 @@ function scrollToBottom() {
 }
 
 
-// ===============================
+// =====================================================
 // ESCAPE HTML
-// ===============================
+// =====================================================
 
 function escapeHtml(text) {
 
@@ -610,17 +791,17 @@ function escapeHtml(text) {
 }
 
 
-// ===============================
-// FORMAT FILE SIZE
-// ===============================
+// =====================================================
+// FILE SIZE
+// =====================================================
 
 function formatFileSize(bytes) {
 
     if (bytes < 1024) {
 
         return bytes + " B";
-
     }
+
 
     if (bytes < 1024 * 1024) {
 
@@ -628,8 +809,8 @@ function formatFileSize(bytes) {
             (bytes / 1024).toFixed(1) +
             " KB"
         );
-
     }
+
 
     return (
         (bytes / (1024 * 1024)).toFixed(1) +
@@ -638,131 +819,165 @@ function formatFileSize(bytes) {
 }
 
 
-// ===============================
+// =====================================================
 // SELECT IMAGE
-// ===============================
+// =====================================================
 
-imageButton.addEventListener(
-    "click",
-    function() {
+if (imageButton && imageInput) {
 
-        imageInput.click();
+    imageButton.addEventListener(
+        "click",
+        function() {
 
-    }
-);
+            imageInput.click();
 
-
-// ===============================
-// IMAGE SELECTED
-// ===============================
-
-imageInput.addEventListener(
-    "change",
-    function() {
-
-        const file =
-            imageInput.files[0];
-
-
-        if (!file) {
-            return;
         }
+    );
 
 
-        // Only images
-        if (
-            !file.type.startsWith(
-                "image/"
-            )
-        ) {
+    imageInput.addEventListener(
+        "change",
+        function() {
 
-            alert(
-                "Please select an image."
-            );
-
-            imageInput.value = "";
-
-            return;
-        }
+            const file =
+                imageInput.files[0];
 
 
-        // 10 MB maximum
-        if (
-            file.size >
-            10 * 1024 * 1024
-        ) {
-
-            alert(
-                "Image must be 10 MB or smaller."
-            );
-
-            imageInput.value = "";
-
-            return;
-        }
+            if (!file) {
+                return;
+            }
 
 
-        selectedImage = file;
+            if (
+                !file.type.startsWith(
+                    "image/"
+                )
+            ) {
+
+                alert(
+                    "Please select an image."
+                );
+
+                imageInput.value = "";
+
+                return;
+            }
 
 
-        // Preview
-        const reader =
-            new FileReader();
+            if (
+                file.size >
+                10 * 1024 * 1024
+            ) {
+
+                alert(
+                    "Image must be 10 MB or smaller."
+                );
+
+                imageInput.value = "";
+
+                return;
+            }
 
 
-        reader.onload = function(event) {
-
-            previewImage.src =
-                event.target.result;
-
-        };
+            selectedImage =
+                file;
 
 
-        reader.readAsDataURL(file);
+            const reader =
+                new FileReader();
 
 
-        previewName.textContent =
-            file.name;
+            reader.onload =
+                function(event) {
 
-        previewSize.textContent =
-            formatFileSize(
-                file.size
+                    if (previewImage) {
+
+                        previewImage.src =
+                            event.target.result;
+                    }
+
+                };
+
+
+            reader.readAsDataURL(
+                file
             );
 
 
-        imagePreview.style.display =
-            "block";
-    }
-);
+            if (previewName) {
+
+                previewName.textContent =
+                    file.name;
+            }
 
 
-// ===============================
-// REMOVE SELECTED IMAGE
-// ===============================
+            if (previewSize) {
 
-removeImage.addEventListener(
-    "click",
-    function() {
-
-        selectedImage = null;
-
-        imageInput.value = "";
-
-        previewImage.src = "";
-
-        previewName.textContent = "";
-
-        previewSize.textContent = "";
-
-        imagePreview.style.display =
-            "none";
-    }
-);
+                previewSize.textContent =
+                    formatFileSize(
+                        file.size
+                    );
+            }
 
 
-// ===============================
+            if (imagePreview) {
+
+                imagePreview.style.display =
+                    "block";
+            }
+
+        }
+    );
+}
+
+
+// =====================================================
+// REMOVE IMAGE
+// =====================================================
+
+if (removeImage) {
+
+    removeImage.addEventListener(
+        "click",
+        function() {
+
+            selectedImage = null;
+
+
+            if (imageInput) {
+                imageInput.value = "";
+            }
+
+
+            if (previewImage) {
+                previewImage.src = "";
+            }
+
+
+            if (previewName) {
+                previewName.textContent = "";
+            }
+
+
+            if (previewSize) {
+                previewSize.textContent = "";
+            }
+
+
+            if (imagePreview) {
+
+                imagePreview.style.display =
+                    "none";
+            }
+
+        }
+    );
+}
+
+
+// =====================================================
 // UPLOAD IMAGE
-// ===============================
+// =====================================================
 
 async function uploadImage() {
 
@@ -770,23 +985,41 @@ async function uploadImage() {
         return false;
     }
 
+
     if (!currentOrder) {
         return false;
     }
 
-    const file = selectedImage;
 
-    uploadStatus.style.display = "block";
-    uploadStatus.textContent = "Uploading image...";
+    const file =
+        selectedImage;
 
-    imageButton.disabled = true;
-    sendButton.disabled = true;
+
+    if (uploadStatus) {
+
+        uploadStatus.style.display =
+            "block";
+
+        uploadStatus.textContent =
+            "Uploading image...";
+    }
+
+
+    if (imageButton) {
+        imageButton.disabled = true;
+    }
+
+
+    if (sendButton) {
+        sendButton.disabled = true;
+    }
+
 
     try {
 
-        // =========================
-        // CREATE UNIQUE FILE PATH
-        // =========================
+        // ---------------------------------------------
+        // FILE EXTENSION
+        // ---------------------------------------------
 
         const extension =
             file.name
@@ -794,23 +1027,39 @@ async function uploadImage() {
                 .pop()
                 .toLowerCase();
 
+
         const safeExtension =
             extension.replace(
                 /[^a-z0-9]/gi,
                 ""
             );
 
+
+        // ---------------------------------------------
+        // UNIQUE PATH
+        // ---------------------------------------------
+
         const filePath =
             `chat/${Number(orderId)}/${Date.now()}-${crypto.randomUUID()}.${safeExtension}`;
 
 
-        // =========================
-        // UPLOAD TO STORAGE
-        // =========================
+        console.log(
+            "Uploading:",
+            filePath
+        );
 
-        const { error: uploadError } =
+
+        // ---------------------------------------------
+        // STORAGE
+        // ---------------------------------------------
+
+        const {
+            error: uploadError
+        } =
             await supabaseClient.storage
-                .from("order-screenshots")
+                .from(
+                    "order-screenshots"
+                )
                 .upload(
                     filePath,
                     file,
@@ -821,7 +1070,9 @@ async function uploadImage() {
                     }
                 );
 
+
         if (uploadError) {
+
             console.error(
                 "Storage upload error:",
                 uploadError
@@ -831,15 +1082,21 @@ async function uploadImage() {
         }
 
 
-        uploadStatus.textContent =
-            "Saving image...";
+        // ---------------------------------------------
+        // SAVE DB
+        // ---------------------------------------------
+
+        if (uploadStatus) {
+
+            uploadStatus.textContent =
+                "Saving image...";
+        }
 
 
-        // =========================
-        // SAVE DATABASE RECORD
-        // =========================
-
-        const { data, error } =
+        const {
+            data,
+            error
+        } =
             await supabaseClient.rpc(
                 "add_customer_screenshot",
                 {
@@ -865,12 +1122,15 @@ async function uploadImage() {
                 error
             );
 
-            // Delete uploaded file if DB save failed
+
             await supabaseClient.storage
-                .from("order-screenshots")
+                .from(
+                    "order-screenshots"
+                )
                 .remove([
                     filePath
                 ]);
+
 
             throw error;
         }
@@ -882,18 +1142,61 @@ async function uploadImage() {
         );
 
 
-        // =========================
-        // IMMEDIATELY SHOW IN CHAT
-        // =========================
+        // ---------------------------------------------
+        // GET ID
+        // ---------------------------------------------
 
-        const screenshotId =
+        let screenshotId =
             data?.screenshot_id;
+
+
+        /*
+         * If RPC does not return screenshot_id,
+         * find the record we just inserted.
+         */
+
+        if (!screenshotId) {
+
+            const {
+                data: screenshot
+            } =
+                await supabaseClient
+                    .from(
+                        "order_screenshots"
+                    )
+                    .select(
+                        "id, order_id, file_path, original_name, created_at"
+                    )
+                    .eq(
+                        "order_id",
+                        Number(orderId)
+                    )
+                    .eq(
+                        "file_path",
+                        filePath
+                    )
+                    .maybeSingle();
+
+
+            if (screenshot) {
+
+                screenshotId =
+                    screenshot.id;
+
+            }
+        }
+
+
+        // ---------------------------------------------
+        // SHOW IMMEDIATELY
+        // ---------------------------------------------
 
         if (screenshotId) {
 
             const imageData = {
 
-                id: screenshotId,
+                id:
+                    screenshotId,
 
                 order_id:
                     Number(orderId),
@@ -905,15 +1208,10 @@ async function uploadImage() {
                     file.name,
 
                 created_at:
-                    new Date().toISOString(),
-
-                // Customer is sending this image
-                sender_type:
-                    "customer"
+                    new Date().toISOString()
             };
 
 
-            // Remove empty message
             const empty =
                 messagesBox.querySelector(
                     ".empty"
@@ -929,52 +1227,68 @@ async function uploadImage() {
             );
 
 
-            const last =
-                messagesBox.lastElementChild;
-
-            if (last) {
-
-                last.dataset.imageId =
-                    screenshotId;
-
-            }
-
-
             scrollToBottom();
+
+        } else {
+
+            /*
+             * RPC didn't return an ID.
+             * Reload saved images instead.
+             */
+
+            await loadImages();
         }
 
 
-        // =========================
-        // RESET IMAGE
-        // =========================
+        // ---------------------------------------------
+        // RESET
+        // ---------------------------------------------
 
         selectedImage = null;
 
-        imageInput.value = "";
 
-        previewImage.src = "";
-
-        previewName.textContent = "";
-
-        previewSize.textContent = "";
-
-        imagePreview.style.display =
-            "none";
+        if (imageInput) {
+            imageInput.value = "";
+        }
 
 
-        uploadStatus.textContent =
-            "Image sent.";
+        if (previewImage) {
+            previewImage.src = "";
+        }
 
 
-        setTimeout(
-            function() {
+        if (previewName) {
+            previewName.textContent = "";
+        }
 
-                uploadStatus.style.display =
-                    "none";
 
-            },
-            1500
-        );
+        if (previewSize) {
+            previewSize.textContent = "";
+        }
+
+
+        if (imagePreview) {
+
+            imagePreview.style.display =
+                "none";
+        }
+
+
+        if (uploadStatus) {
+
+            uploadStatus.textContent =
+                "Image sent.";
+
+            setTimeout(
+                function() {
+
+                    uploadStatus.style.display =
+                        "none";
+
+                },
+                1500
+            );
+        }
 
 
         return true;
@@ -987,29 +1301,38 @@ async function uploadImage() {
             error
         );
 
+
         alert(
             "Unable to upload image. Please try again."
         );
 
-        uploadStatus.style.display =
-            "none";
+
+        if (uploadStatus) {
+
+            uploadStatus.style.display =
+                "none";
+        }
+
 
         return false;
 
 
     } finally {
 
-        imageButton.disabled =
-            false;
+        if (imageButton) {
+            imageButton.disabled = false;
+        }
 
-        sendButton.disabled =
-            false;
+        if (sendButton) {
+            sendButton.disabled = false;
+        }
     }
 }
 
-// ===============================
+
+// =====================================================
 // SEND MESSAGE
-// ===============================
+// =====================================================
 
 async function sendMessage() {
 
@@ -1017,9 +1340,7 @@ async function sendMessage() {
         messageInput.value.trim();
 
 
-    // =========================
     // IMAGE ONLY
-    // =========================
 
     if (
         !message &&
@@ -1032,9 +1353,7 @@ async function sendMessage() {
     }
 
 
-    // =========================
-    // NOTHING TO SEND
-    // =========================
+    // NOTHING
 
     if (
         !message &&
@@ -1052,88 +1371,97 @@ async function sendMessage() {
 
     sendButton.disabled = true;
 
-    imageButton.disabled = true;
+
+    if (imageButton) {
+        imageButton.disabled = true;
+    }
+
 
     sendButton.textContent =
         "SENDING...";
 
 
-    // =========================
-    // SEND TEXT
-    // =========================
+    try {
 
-    if (message) {
+        // ---------------------------------------------
+        // TEXT
+        // ---------------------------------------------
 
-        const { data, error } =
-            await supabaseClient.rpc(
-                "send_customer_message",
-                {
-                    p_order_id:
-                        Number(orderId),
+        if (message) {
 
-                    p_access_token:
-                        accessToken,
+            const {
+                data,
+                error
+            } =
+                await supabaseClient.rpc(
+                    "send_customer_message",
+                    {
+                        p_order_id:
+                            Number(orderId),
 
-                    p_message:
-                        message
-                }
+                        p_access_token:
+                            accessToken,
+
+                        p_message:
+                            message
+                    }
+                );
+
+
+            if (error) {
+
+                console.error(
+                    error
+                );
+
+                alert(
+                    "Unable to send message. Please try again."
+                );
+
+                return;
+            }
+
+
+            messageInput.value = "";
+
+
+            console.log(
+                "Message sent:",
+                data
             );
-
-
-        if (error) {
-
-            console.error(error);
-
-            alert(
-                "Unable to send message. Please try again."
-            );
-
-            sendButton.disabled =
-                false;
-
-            imageButton.disabled =
-                false;
-
-            sendButton.textContent =
-                "SEND";
-
-            return;
         }
 
 
-        messageInput.value = "";
+        // ---------------------------------------------
+        // IMAGE + TEXT
+        // ---------------------------------------------
 
-        console.log(
-            "Message sent:",
-            data
-        );
+        if (selectedImage) {
+
+            await uploadImage();
+        }
+
+
+    } finally {
+
+        sendButton.disabled =
+            false;
+
+
+        if (imageButton) {
+            imageButton.disabled = false;
+        }
+
+
+        sendButton.textContent =
+            "SEND";
     }
-
-
-    // =========================
-    // SEND IMAGE TOO
-    // =========================
-
-    if (selectedImage) {
-
-        await uploadImage();
-    }
-
-
-    sendButton.disabled =
-        false;
-
-    imageButton.disabled =
-        false;
-
-    sendButton.textContent =
-        "SEND";
 }
 
 
-// ===============================
+// =====================================================
 // SEND BUTTON
-// ===============================
+// =====================================================
 
 sendButton.addEventListener(
     "click",
@@ -1141,9 +1469,9 @@ sendButton.addEventListener(
 );
 
 
-// ===============================
-// ENTER TO SEND
-// ===============================
+// =====================================================
+// ENTER
+// =====================================================
 
 messageInput.addEventListener(
     "keydown",
@@ -1163,15 +1491,37 @@ messageInput.addEventListener(
 );
 
 
-// ===============================
+// =====================================================
 // START
-// ===============================
+// =====================================================
 
 async function start() {
 
-    await loadOrder();
+    const loaded =
+        await loadOrder();
+
+
+    if (!loaded) {
+        return;
+    }
+
+
+    /*
+     * IMPORTANT:
+     * Load images AFTER order has loaded.
+     */
 
     await loadImages();
+
+
+    /*
+     * Then start realtime.
+     */
+
+    subscribeToRealtime();
+
+
+    scrollToBottom();
 }
 
 
