@@ -465,8 +465,8 @@ async function loadChat() {
                 supabaseClient
                     .from("order_screenshots")
                     .select(
-                        "id, order_id, file_path, original_name, created_at"
-                    )
+                            "id, order_id, file_path, original_name, sender_type, created_at"
+                        )
                     .eq(
                         "order_id",
                         orderId
@@ -786,6 +786,21 @@ function addImageToChat(
     }
 
 
+    // ==========================================
+    // DETERMINE SENDER
+    // ==========================================
+
+    const senderType =
+        String(
+            image.sender_type ||
+            "customer"
+        ).toLowerCase();
+
+
+    const isAdmin =
+        senderType === "admin";
+
+
     const div =
         document.createElement(
             "div"
@@ -793,11 +808,19 @@ function addImageToChat(
 
 
     div.className =
-        "message customer";
+        isAdmin
+            ? "message admin"
+            : "message customer";
 
 
     div.dataset.imageId =
         image.id;
+
+
+    const sender =
+        isAdmin
+            ? "ADMIN"
+            : "CUSTOMER";
 
 
     const time =
@@ -809,7 +832,7 @@ function addImageToChat(
     div.innerHTML =
         `
         <div class="sender">
-            CUSTOMER
+            ${sender}
         </div>
 
         <div class="bubble image-bubble">
@@ -821,7 +844,7 @@ function addImageToChat(
                 class="chat-image"
                 alt="${escapeHtml(
                     image.original_name ||
-                    "Customer Image"
+                    "Image"
                 )}"
                 loading="lazy"
             >
@@ -835,7 +858,9 @@ function addImageToChat(
                 "
             >
                 Unable to display image.
+
                 <br>
+
                 <a
                     href="${escapeHtml(
                         imageUrl
@@ -918,7 +943,6 @@ function addImageToChat(
         scrollToBottom();
     }
 }
-
 
 // ======================================================
 // SEND ADMIN MESSAGE
@@ -1807,26 +1831,29 @@ async function uploadAdminImage() {
     // Save database record
 
     const {
-        data,
-        error:
-            databaseError
-    } =
-        await supabaseClient
-            .from("order_screenshots")
-            .insert({
+    data,
+    error: databaseError
+} =
+    await supabaseClient
+        .from("order_screenshots")
+        .insert({
 
-                order_id:
-                    orderId,
+            order_id:
+                orderId,
 
-                file_path:
-                    filePath,
+            file_path:
+                filePath,
 
-                original_name:
-                    selectedImage.name
+            original_name:
+                selectedImage.name,
 
-            })
-            .select()
-            .single();
+            sender_type:
+                "admin"
+
+        })
+        .select()
+        .single();
+         
 
 
     if (databaseError) {
