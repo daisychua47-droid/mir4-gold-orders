@@ -747,90 +747,59 @@ function getImageUrl(
 // ADD IMAGE
 // ======================================================
 
-function addImageToChat(
-    image,
-    scroll = true
-) {
+function addImageToChat(image, scroll = true) {
 
     if (!image || !image.id) {
         return;
     }
 
-
-    // Prevent duplicate
-
+    // Prevent duplicate image
     if (
         document.querySelector(
             `[data-image-id="${image.id}"]`
         )
     ) {
-
         return;
     }
 
-
-    const imageUrl =
-        getImageUrl(
-            image.file_path
-        );
-
+    const imageUrl = getImageUrl(image.file_path);
 
     if (!imageUrl) {
-
-        console.error(
-            "Invalid image path:",
-            image
-        );
-
+        console.error("Invalid image path:", image);
         return;
     }
-
 
     // ==========================================
     // DETERMINE SENDER
     // ==========================================
 
-    const senderType =
-        String(
-            image.sender_type ||
-            "customer"
-        ).toLowerCase();
+    const senderType = String(
+        image.sender_type || "customer"
+    ).trim().toLowerCase();
 
+    const isAdmin = senderType === "admin";
 
-    const isAdmin =
-        senderType === "admin";
+    const div = document.createElement("div");
 
+    // IMPORTANT:
+    // Explicitly assign the correct side
+    if (isAdmin) {
+        div.className = "message admin";
+    } else {
+        div.className = "message customer";
+    }
 
-    const div =
-        document.createElement(
-            "div"
-        );
+    div.dataset.imageId = image.id;
 
+    const sender = isAdmin
+        ? "ADMIN"
+        : "CUSTOMER";
 
-    div.className =
-        isAdmin
-            ? "message admin"
-            : "message customer";
+    const time = new Date(
+        image.created_at
+    ).toLocaleString();
 
-
-    div.dataset.imageId =
-        image.id;
-
-
-    const sender =
-        isAdmin
-            ? "ADMIN"
-            : "CUSTOMER";
-
-
-    const time =
-        new Date(
-            image.created_at
-        ).toLocaleString();
-
-
-    div.innerHTML =
-        `
+    div.innerHTML = `
         <div class="sender">
             ${sender}
         </div>
@@ -838,40 +807,23 @@ function addImageToChat(
         <div class="bubble image-bubble">
 
             <img
-                src="${escapeHtml(
-                    imageUrl
-                )}"
+                src="${escapeHtml(imageUrl)}"
                 class="chat-image"
                 alt="${escapeHtml(
-                    image.original_name ||
-                    "Image"
+                    image.original_name || "Image"
                 )}"
-                loading="lazy"
             >
 
             <div
                 class="image-error"
-                style="
-                    display:none;
-                    color:#fecaca;
-                    padding:10px;
-                "
+                style="display:none;"
             >
                 Unable to display image.
-
                 <br>
-
                 <a
-                    href="${escapeHtml(
-                        imageUrl
-                    )}"
+                    href="${escapeHtml(imageUrl)}"
                     target="_blank"
                     rel="noopener"
-                    style="
-                        color:#93c5fd;
-                        display:inline-block;
-                        margin-top:6px;
-                    "
                 >
                     Open image
                 </a>
@@ -880,70 +832,55 @@ function addImageToChat(
         </div>
 
         <div class="time">
-            ${escapeHtml(
-                time
-            )}
+            ${escapeHtml(time)}
         </div>
-        `;
+    `;
 
-
-    const img =
-        div.querySelector(
-            ".chat-image"
-        );
-
+    const img = div.querySelector(".chat-image");
 
     const errorMessage =
-        div.querySelector(
-            ".image-error"
+        div.querySelector(".image-error");
+
+    // ==========================================
+    // IMAGE CLICK
+    // ==========================================
+
+    img.addEventListener("click", function () {
+
+        window.open(
+            imageUrl,
+            "_blank"
         );
 
+    });
 
-    img.addEventListener(
-        "click",
-        function() {
+    // ==========================================
+    // IMAGE ERROR
+    // ==========================================
 
-            window.open(
-                imageUrl,
-                "_blank"
-            );
+    img.addEventListener("error", function () {
 
-        }
-    );
+        console.error(
+            "IMAGE FAILED:",
+            imageUrl
+        );
 
+        img.style.display = "none";
 
-    img.addEventListener(
-        "error",
-        function() {
+        errorMessage.style.display = "block";
 
-            console.error(
-                "IMAGE FAILED:",
-                imageUrl
-            );
+    });
 
+    // ==========================================
+    // APPEND
+    // ==========================================
 
-            img.style.display =
-                "none";
-
-
-            errorMessage.style.display =
-                "block";
-
-        }
-    );
-
-
-    messagesBox.appendChild(
-        div
-    );
-
+    messagesBox.appendChild(div);
 
     if (scroll) {
-
         scrollToBottom();
     }
 }
-
 // ======================================================
 // SEND ADMIN MESSAGE
 // ======================================================
