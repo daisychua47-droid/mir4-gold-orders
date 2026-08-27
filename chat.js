@@ -683,127 +683,293 @@ async function loadImages() {
 // REALTIME
 // =====================================================
 
-function subscribeToRealtime() {
+// =====================================================
+// CUSTOMER LIVE CHAT
+// =====================================================
 
-    if (!orderId) {
+let liveChatTimer = null;
+let lastChatSignature = "";
+
+
+// =====================================================
+// CREATE CHAT SIGNATURE
+// =====================================================
+
+function createChatSignature(messages, images) {
+
+    const messagePart =
+        (messages || [])
+            .map(item =>
+                `${item.id}|${item.created_at}|${item.sender_type}|${item.message || ""}`
+            )
+            .join("||");
+
+    const imagePart =
+        (images || [])
+            .map(item =>
+                `${item.id}|${item.created_at}|${item.sender_type}|${item.file_path}`
+            )
+            .join("||");
+
+    return messagePart + "###" + imagePart;
+}
+
+
+// =====================================================
+// LOAD LIVE CHAT
+// =====================================================
+
+async function refreshCustomerChat() {
+
+    if (!orderId || !accessToken) {
         return;
     }
 
+    try {
 
-    if (realtimeChannel) {
-
-        supabaseClient.removeChannel(
-            realtimeChannel
+        const {
+            data,
+            error
+        } = await supabaseClient.rpc(
+            "get_customer_order",
+            {
+                p_order_id: Number(orderId),
+                p_access_token: accessToken
+            }
         );
 
-        realtimeChannel = null;
+
+        if (error) {
+
+            console.error(
+                "Live chat error:",
+                error
+            );
+
+            return;
+        }
+
+
+        if (!data || !data.order) {
+            return;
+        }
+
+
+        const messages =
+            data.messages || [];
+
+
+        // ---------------------------------------------
+        // LOAD IMAGES
+        // ---------------------------------------------
+
+        const {
+            data: images,
+            error: imageError
+        } =
+            await supabaseClient
+                .from("order_screenshots")
+                .select(
+                    "id, order_id, file_path, original_name, created_at, sender_type"
+                )
+                .eq(
+                    "order_id",
+                    Number(orderId)
+                )
+                .order(
+                    "created_at",
+                    {
+                        ascending: true
+                    }
+                );
+
+
+        if (imageError) {
+
+            console.error(
+                "Live image error:",
+                imageError
+            );
+
+            return;
+        }
+
+
+        const allImages =
+            images || [];
+
+
+        // ---------------------------------------------
+        // CHECK IF CHAT CHANGED
+        // ---------------------------------------------
+
+        const signature =
+            createChatSignature(
+                messages,
+                allImages
+            );
+
+
+        if (
+            signature ===
+            lastChatSignature
+        ) {
+
+            return;
+        }
+
+
+        lastChatSignature =
+            signature;
+
+
+        // ---------------------------------------------
+        // COMBINE MESSAGES + IMAGES
+        // ---------------------------------------------
+
+        const items = [
+
+            ...messages.map(message => ({
+                ...message,
+                is_image: false
+            })),
+
+            ...allImages.map(image => ({
+                ...image,
+                is_image: true
+            }))
+
+        ];
+
+
+        items.sort(
+            (a, b) =>
+                new Date(a.created_at) -
+                new Date(b.created_at)
+        );
+
+
+        // ---------------------------------------------
+        // RENDER
+        // ---------------------------------------------
+
+        messagesBox.innerHTML = "";
+
+
+        if (!items.length) {
+
+            messagesBox.innerHTML = `
+                <div class="empty">
+                    No messages yet.
+                </div>
+            `;
+
+            return;
+        }
+
+
+        items.forEach(item => {
+
+            if (item.is_image) {
+
+                addImageToChat(item);
+
+            } else {
+
+                addMessageToChat(item);
+
+            }
+
+        });
+
+
+        scrollToBottom();
+
+
+        console.log(
+            "✓ Customer chat updated"
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "Live chat refresh error:",
+            error
+        );
+    }
+}
+
+
+// =====================================================
+// START LIVE CHAT
+// =====================================================
+
+function subscribeToRealtime() {
+
+    // Stop previous timer
+
+    if (liveChatTimer) {
+
+        clearInterval(
+            liveChatTimer
+        );
+
+        liveChatTimer = null;
     }
 
 
-    realtimeChannel =
-        supabaseClient
-            .channel(
-                `customer-order-${orderId}`
-            )
+    console.log(
+        "Starting customer live chat..."
+    );
 
 
-            // =========================================
-            // TEXT MESSAGE
-            // =========================================
+    // Check immediately
 
-            .on(
-                "postgres_changes",
-                {
-                    event: "INSERT",
-                    schema: "public",
-                    table: "order_messages",
-                    filter:
-                        `order_id=eq.${Number(orderId)}`
-                },
-                payload => {
-
-                    console.log(
-                        "Realtime message:",
-                        payload.new
-                    );
+    refreshCustomerChat();
 
 
-                    const empty =
-                        messagesBox.querySelector(
-                            ".empty"
-                        );
+    // Check every 2 seconds
 
-                    if (empty) {
-                        empty.remove();
-                    }
-
-
-                    addMessageToChat(
-                        payload.new
-                    );
+    liveChatTimer =
+        setInterval(
+            refreshCustomerChat,
+            2000
+        );
 
 
-                    scrollToBottom();
-
-                }
-            )
-
-
-            // =========================================
-            // IMAGE
-            // =========================================
-
-            .on(
-                "postgres_changes",
-                {
-                    event: "INSERT",
-                    schema: "public",
-                    table: "order_screenshots",
-                    filter:
-                        `order_id=eq.${Number(orderId)}`
-                },
-                payload => {
-
-                    console.log(
-                        "Realtime image:",
-                        payload.new
-                    );
-
-
-                    const empty =
-                        messagesBox.querySelector(
-                            ".empty"
-                        );
-
-                    if (empty) {
-                        empty.remove();
-                    }
-
-
-                    addImageToChat({
-                        ...payload.new,
-                        is_image: true
-                    });
-
-
-                    scrollToBottom();
-
-                }
-            )
-
-
-            .subscribe(
-                subscriptionStatus => {
-
-                    console.log(
-                        "Realtime status:",
-                        subscriptionStatus
-                    );
-
-                }
-            );
+    console.log(
+        "✓ Customer live chat started"
+    );
 }
 
+
+// =====================================================
+// STOP LIVE CHAT
+// =====================================================
+
+function stopLiveChat() {
+
+    if (liveChatTimer) {
+
+        clearInterval(
+            liveChatTimer
+        );
+
+        liveChatTimer = null;
+    }
+
+}
+
+
+// =====================================================
+// STOP WHEN PAGE CLOSES
+// =====================================================
+
+window.addEventListener(
+    "beforeunload",
+    stopLiveChat
+);
 
 // =====================================================
 // SCROLL
@@ -1547,17 +1713,10 @@ async function start() {
     }
 
 
-    /*
-     * IMPORTANT:
-     * Load images AFTER order has loaded.
-     */
-
     await loadImages();
 
 
-    /*
-     * Then start realtime.
-     */
+    // Start automatic customer chat updates
 
     subscribeToRealtime();
 
