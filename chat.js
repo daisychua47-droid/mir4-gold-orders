@@ -531,27 +531,18 @@ async function loadImages() {
     const {
         data,
         error
-    } =
-        await supabaseClient
-            .from("order_screenshots")
-            .select(
-                "id, order_id, file_path, original_name, created_at, sender_type"
-            )
-            .eq(
-                "order_id",
-                Number(orderId)
-            )
-            .order(
-                "created_at",
-                {
-                    ascending: true
-                }
-            );
+    } = await supabaseClient.rpc(
+        "get_customer_screenshots",
+        {
+            p_order_id: Number(orderId),
+            p_access_token: accessToken
+        }
+    );
 
     if (error) {
 
         console.error(
-            "Unable to load images:",
+            "Unable to load customer screenshots:",
             error
         );
 
@@ -559,48 +550,28 @@ async function loadImages() {
     }
 
     console.log(
-        "Saved images:",
+        "Customer screenshots:",
         data
     );
 
-    if (!data) {
-        return;
-    }
-
-    /*
-     * IMPORTANT:
-     * We don't append images separately anymore.
-     *
-     * Convert them to chat items so they can be
-     * positioned together with text messages.
-     */
-
-    const imageItems =
-        data.map(image => ({
-            ...image,
-            is_image: true
-        }));
+    const images =
+        Array.isArray(data)
+            ? data
+            : [];
 
 
-    /*
-     * Get existing text messages from the DOM
-     * is not reliable, so reload the order RPC.
-     */
-
+    // Get messages through the secure customer RPC
     const {
         data: orderData,
         error: orderError
-    } =
-        await supabaseClient.rpc(
-            "get_customer_order",
-            {
-                p_order_id:
-                    Number(orderId),
+    } = await supabaseClient.rpc(
+        "get_customer_order",
+        {
+            p_order_id: Number(orderId),
+            p_access_token: accessToken
+        }
+    );
 
-                p_access_token:
-                    accessToken
-            }
-        );
 
     if (orderError) {
 
@@ -621,21 +592,21 @@ async function loadImages() {
             }));
 
 
-    /*
-     * Combine EVERYTHING
-     */
-
-    const allItems =
-        [
-            ...textItems,
-            ...imageItems
-        ];
+    const imageItems =
+        images.map(image => ({
+            ...image,
+            is_image: true
+        }));
 
 
-    /*
-     * Sort by actual creation time
-     */
+    // Combine text + images
+    const allItems = [
+        ...textItems,
+        ...imageItems
+    ];
 
+
+    // Sort everything by actual creation time
     allItems.sort(
         (a, b) =>
             new Date(a.created_at) -
@@ -643,14 +614,10 @@ async function loadImages() {
     );
 
 
-    /*
-     * Render everything in correct order
-     */
-
     messagesBox.innerHTML = "";
 
 
-    if (allItems.length === 0) {
+    if (!allItems.length) {
 
         messagesBox.innerHTML = `
             <div class="empty">
@@ -766,24 +733,33 @@ async function refreshCustomerChat() {
         // ---------------------------------------------
 
         const {
-            data: images,
-            error: imageError
-        } =
-            await supabaseClient
-                .from("order_screenshots")
-                .select(
-                    "id, order_id, file_path, original_name, created_at, sender_type"
-                )
-                .eq(
-                    "order_id",
-                    Number(orderId)
-                )
-                .order(
-                    "created_at",
-                    {
-                        ascending: true
-                    }
-                );
+    data: images,
+    error: imageError
+} =
+    await supabaseClient.rpc(
+        "get_customer_screenshots",
+        {
+            p_order_id: Number(orderId),
+            p_access_token: accessToken
+        }
+    );
+
+
+if (imageError) {
+
+    console.error(
+        "Live image error:",
+        imageError
+    );
+
+    return;
+}
+
+
+const allImages =
+    Array.isArray(images)
+        ? images
+        : [];
 
 
         if (imageError) {
@@ -795,11 +771,6 @@ async function refreshCustomerChat() {
 
             return;
         }
-
-
-        const allImages =
-            images || [];
-
 
         // ---------------------------------------------
         // CHECK IF CHAT CHANGED
