@@ -299,23 +299,25 @@ function getImageUrl(filePath) {
         return "";
     }
 
+    const {
+        data
+    } = supabaseClient
+        .storage
+        .from("order-screenshots")
+        .getPublicUrl(filePath);
 
-    const cleanPath =
-        String(filePath)
-            .split("/")
-            .map(part =>
-                encodeURIComponent(part)
-            )
-            .join("/");
-
-
-    return (
-        SUPABASE_URL +
-        "/storage/v1/object/public/order-screenshots/" +
-        cleanPath
+    console.log(
+        "IMAGE PATH:",
+        filePath
     );
-}
 
+    console.log(
+        "IMAGE URL:",
+        data.publicUrl
+    );
+
+    return data.publicUrl;
+}
 
 // =====================================================
 // ADD IMAGE TO CHAT
