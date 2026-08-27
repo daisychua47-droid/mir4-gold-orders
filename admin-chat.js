@@ -728,7 +728,12 @@ function getImageUrl(filePath) {
         .getPublicUrl(filePath);
 
     console.log(
-        "Generated image URL:",
+        "IMAGE PATH:",
+        filePath
+    );
+
+    console.log(
+        "IMAGE URL:",
         data.publicUrl
     );
 
